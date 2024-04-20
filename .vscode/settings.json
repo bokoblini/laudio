@@ -27,6 +27,8 @@
     "system_error": "c",
     "ratio": "c",
     "typeinfo": "c",
-    "valarray": "c"
+    "valarray": "c",
+    "pffft.h": "c",
+    "math.h": "c"
   }
 }
