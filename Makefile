@@ -1,7 +1,9 @@
 all: \
 	streamdumper \
 	txtfft \
-	rgen
+	rgen \
+	multitxtfft \
+	gtkpelda
 
 .PHONY: all
 
@@ -19,3 +21,9 @@ rgen: rgen.c
 
 fftlib.o: fftlib.c fftlib.h
 	gcc -Wall -I$(PFFFT_DIR) -c fftlib.c -lm
+
+multitxtfft: multitxtfft.c fftlib.o fftlib.h
+	gcc -Wall -o multitxtfft -I$(PFFFT_DIR) multitxtfft.c fftlib.o $(PFFFT_DIR)/pffft.o -lm
+
+gtkpelda: gtkpelda.c
+	gcc -Wall -o gtkpelda $(shell pkg-config --cflags gtk4) gtkpelda.c $(shell pkg-config --libs gtk4)
