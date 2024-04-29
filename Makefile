@@ -3,7 +3,8 @@ all: \
 	txtfft \
 	rgen \
 	multitxtfft \
-	gtkpelda
+	gtkpelda \
+	slidergrapher
 
 .PHONY: all
 
@@ -27,3 +28,6 @@ multitxtfft: multitxtfft.c fftlib.o fftlib.h
 
 gtkpelda: gtkpelda.c
 	gcc -Wall -o gtkpelda $(shell pkg-config --cflags gtk4) gtkpelda.c $(shell pkg-config --libs gtk4)
+
+slidergrapher: slidergrapher.c
+	gcc -Wall -o slidergrapher $(shell pkg-config --cflags gtk4) slidergrapher.c $(shell pkg-config --libs gtk4)
