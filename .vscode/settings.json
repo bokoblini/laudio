@@ -29,6 +29,12 @@
     "typeinfo": "c",
     "valarray": "c",
     "pffft.h": "c",
-    "math.h": "c"
-  }
+    "math.h": "c",
+    "gtk.h": "c",
+    "gsk.h": "c",
+    "gskpath.h": "c",
+    "gsktypes.h": "c",
+    "graphene.h": "c"
+  },
+  "C_Cpp.default.compilerPath": "/usr/bin/gcc"
 }

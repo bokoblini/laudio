@@ -7,7 +7,6 @@
                 "${default}"
             ],
             "defines": [],
-            "compilerPath": "/usr/bin/gcc",
             "intelliSenseMode": "linux-gcc-x64"
         }
     ],
