@@ -1,6 +1,30 @@
 #include <gtk/gtk.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-static void print_slider (GtkRange *slider, gpointer) {
+#include "loader.h"
+
+typedef struct {
+  float *data;
+  int data_len;
+} GameState;
+
+GameState *game_state_new(char *file_name) {
+  GameState *game_state = (GameState *)malloc(sizeof(GameState));
+  if (!game_state) {
+    fprintf(stderr, "GameState malloc in activate failed\n");
+    exit(1);
+  }
+
+  int rc = read_txtfft(file_name, &game_state->data, &game_state->data_len);
+  if (rc < 0) {
+    fprintf(stderr, "read_txtfft failed\n");
+    exit(1);
+  }
+  return game_state;
+}
+
+static void print_slider(GtkRange *slider, gpointer) {
   fprintf(stderr, "slider: %f\n", gtk_range_get_value(slider));
 }
 
@@ -20,14 +44,15 @@ static void draw_function(GtkDrawingArea *area, cairo_t *cr, int width,
   cairo_fill(cr);
 }
 
-static gchar* txtfft_file = NULL;
-static GOptionEntry slidergrapher_option_entries[] =
-{
-  { "txtfft_file", 'f', 0, G_OPTION_ARG_STRING, &txtfft_file, "Name of the input file.", "<txtfft file>"},
-  G_OPTION_ENTRY_NULL
-};
+static gchar *txtfft_file = NULL;
+static GOptionEntry slidergrapher_option_entries[] = {
+    {"txtfft_file", 'f', 0, G_OPTION_ARG_STRING, &txtfft_file,
+     "Name of the input file.", "<txtfft file>"},
+    G_OPTION_ENTRY_NULL};
 
 static void activate(GtkApplication *app, gpointer user_data) {
+  GameState *game_state = game_state_new(txtfft_file);
+
   GtkWidget *window = gtk_application_window_new(app);
   gtk_window_set_title(GTK_WINDOW(window), "Hello");
 
@@ -37,8 +62,9 @@ static void activate(GtkApplication *app, gpointer user_data) {
   gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(area), draw_function, NULL,
                                  NULL);
 
-  GtkWidget *slider = gtk_scale_new_with_range (GTK_ORIENTATION_HORIZONTAL, 0.0, 100.0, 1.0);
-  g_signal_connect (slider, "value-changed", G_CALLBACK (print_slider), NULL); 
+  GtkWidget *slider =
+      gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.0, 100.0, 1.0);
+  g_signal_connect(slider, "value-changed", G_CALLBACK(print_slider), NULL);
   gtk_range_set_value(GTK_RANGE(slider), 0.0);
 
   GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
@@ -50,7 +76,9 @@ static void activate(GtkApplication *app, gpointer user_data) {
 }
 
 int main(int argc, char **argv) {
-  GOptionGroup* options = g_option_group_new("slidergrapher", "slidergrapher options:", "Show slidergrapher options", NULL, NULL);
+  GOptionGroup *options = g_option_group_new(
+      "slidergrapher", "slidergrapher options:", "Show slidergrapher options",
+      NULL, NULL);
   g_option_group_add_entries(options, slidergrapher_option_entries);
 
   GtkApplication *app;
