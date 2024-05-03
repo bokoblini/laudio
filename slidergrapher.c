@@ -10,6 +10,7 @@ static gchar *flag_txtfft_file = NULL;
 static gint flag_fft_window_size = 2048;
 static gint flag_plot_size = 200;
 static gdouble flag_top_val = 100.0;
+static gboolean flag_auto = FALSE;
 static GOptionEntry slidergrapher_option_entries[] = {
     {"txtfft_file", 'f', 0, G_OPTION_ARG_FILENAME, &flag_txtfft_file,
      "Name of the input file.", "<txtfft file>"},
@@ -19,6 +20,7 @@ static GOptionEntry slidergrapher_option_entries[] = {
      "Part of the fft window to be drawn", "<int>"},
     {"top_val", 't', 0, G_OPTION_ARG_DOUBLE, &flag_top_val,
      "Highest displayed value", "<double>"},
+    {"auto", 'a', 0, G_OPTION_ARG_NONE, &flag_auto, "Autoplay", ""},
     G_OPTION_ENTRY_NULL};
 
 typedef struct {
@@ -36,6 +38,7 @@ typedef struct {
   float *work_buf;
 
   GtkWidget *area;
+  GtkWidget *slider;
 } GameState;
 
 GameState *game_state_new() {
@@ -102,6 +105,25 @@ static void slider_value_changed(GtkRange *slider, gpointer user_data) {
   gtk_widget_queue_draw(game_state->area);
 }
 
+static gboolean auto_step(GtkWidget *widget, GdkFrameClock *frame_clock,
+                          gpointer user_data) {
+  GameState *game_state = (GameState *)user_data;
+
+  if (game_state->cursor >=
+      game_state->data_len - game_state->fft_window_size) {
+    return G_SOURCE_REMOVE;
+  }
+
+  double slider_val = gtk_range_get_value(GTK_RANGE(game_state->slider)) + 0.01;
+  if (slider_val > 100.0) {
+    slider_val = 100.0;
+  }
+
+  gtk_range_set_value(GTK_RANGE(game_state->slider), slider_val);
+  return G_SOURCE_CONTINUE;
+  // slider_value_changed(GTK_SLIDER(game_state->slider), user_data);
+}
+
 static void draw_function(GtkDrawingArea *area, cairo_t *cr, int width,
                           int height, gpointer data) {
   GameState *game_state = (GameState *)data;
@@ -149,6 +171,10 @@ static void activate(GtkApplication *app, gpointer user_data) {
   g_signal_connect(slider, "value-changed", G_CALLBACK(slider_value_changed),
                    game_state);
   gtk_range_set_value(GTK_RANGE(slider), 0.0);
+  game_state->slider = slider;
+  if (flag_auto) {
+    gtk_widget_add_tick_callback(slider, auto_step, game_state, NULL);
+  }
 
   GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   gtk_box_append(GTK_BOX(box), area);
