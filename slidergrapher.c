@@ -1,4 +1,5 @@
 #include <gtk/gtk.h>
+#include <math.h>
 #include <pffft.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,10 +28,14 @@ typedef struct {
   int fft_window_size;
   int plot_size;
 
+  int cursor;
+
   PFFFT_Setup *setup;
   float *input_buf;
   float *output_buf;
   float *work_buf;
+
+  GtkWidget *area;
 } GameState;
 
 GameState *game_state_new() {
@@ -53,6 +58,8 @@ void game_state_init(GameState *game_state, char *file_name,
 
   game_state->fft_window_size = fft_window_size;
   game_state->plot_size = flag_plot_size;
+
+  game_state->cursor = 0;
 
   game_state->setup = pffft_new_setup(fft_window_size, PFFFT_REAL);
 
@@ -86,16 +93,20 @@ void game_state_fft(GameState *game_state, int cursor) {
                           PFFFT_FORWARD);
 }
 
-static void print_slider(GtkRange *slider, gpointer) {
-  fprintf(stderr, "slider: %f\n", gtk_range_get_value(slider));
+static void slider_value_changed(GtkRange *slider, gpointer user_data) {
+  GameState *game_state = (GameState *)user_data;
+
+  game_state->cursor =
+      (int)floor((double)(game_state->data_len - game_state->fft_window_size) *
+                 gtk_range_get_value(slider) / 100.0);
+  gtk_widget_queue_draw(game_state->area);
 }
 
 static void draw_function(GtkDrawingArea *area, cairo_t *cr, int width,
                           int height, gpointer data) {
   GameState *game_state = (GameState *)data;
-  int cursor = 50000;
 
-  game_state_fft(game_state, cursor);
+  game_state_fft(game_state, game_state->cursor);
 
   double column_size = (double)width / (double)game_state->plot_size;
 
@@ -131,9 +142,12 @@ static void activate(GtkApplication *app, gpointer user_data) {
   gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(area), draw_function,
                                  game_state, NULL);
 
+  game_state->area = area;
+
   GtkWidget *slider =
       gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.0, 100.0, 1.0);
-  g_signal_connect(slider, "value-changed", G_CALLBACK(print_slider), NULL);
+  g_signal_connect(slider, "value-changed", G_CALLBACK(slider_value_changed),
+                   game_state);
   gtk_range_set_value(GTK_RANGE(slider), 0.0);
 
   GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
