@@ -187,6 +187,8 @@ static void draw_function(GtkDrawingArea *area, cairo_t *cr, int width,
   color.green = 0.0f;
   color.alpha = 1.0f;
 
+  double prev_x, prev_y;
+
   for (int i = 0; i < game_state->plot_size; ++i) {
     double x = column_size * i + column_size / 2.0;
     double val = game_state->output_buf[i];
@@ -194,6 +196,15 @@ static void draw_function(GtkDrawingArea *area, cairo_t *cr, int width,
         val * (double)height / (2.0 * flag_top_val) + (double)height / 2.0;
     cairo_arc(cr, x, y, 3.0, 0, 2 * G_PI);
     gdk_cairo_set_source_rgba(cr, &color);
+
+    cairo_set_line_width(cr, 1.0);
+    if (i != 0) {
+      cairo_move_to(cr, prev_x, prev_y);
+      cairo_line_to(cr, x, y);
+      cairo_stroke(cr);
+    }
+    prev_x = x;
+    prev_y = y;
 
     cairo_fill(cr);
   }
