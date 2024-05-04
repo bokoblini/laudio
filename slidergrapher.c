@@ -31,6 +31,7 @@ typedef struct {
   int plot_size;
 
   int cursor;
+  gboolean playing;
 
   PFFFT_Setup *setup;
   float *input_buf;
@@ -96,18 +97,13 @@ void game_state_fft(GameState *game_state, int cursor) {
                           PFFFT_FORWARD);
 }
 
-static void slider_value_changed(GtkRange *slider, gpointer user_data) {
-  GameState *game_state = (GameState *)user_data;
-
-  game_state->cursor =
-      (int)floor((double)(game_state->data_len - game_state->fft_window_size) *
-                 gtk_range_get_value(slider) / 100.0);
-  gtk_widget_queue_draw(game_state->area);
-}
-
 static gboolean auto_step(GtkWidget *widget, GdkFrameClock *frame_clock,
                           gpointer user_data) {
   GameState *game_state = (GameState *)user_data;
+
+  if (!game_state->playing) {
+    return G_SOURCE_REMOVE;
+  }
 
   if (game_state->cursor >=
       game_state->data_len - game_state->fft_window_size) {
@@ -120,8 +116,61 @@ static gboolean auto_step(GtkWidget *widget, GdkFrameClock *frame_clock,
   }
 
   gtk_range_set_value(GTK_RANGE(game_state->slider), slider_val);
+
+  game_state->cursor =
+      (int)floor((double)(game_state->data_len - game_state->fft_window_size) *
+                 slider_val / 100.0);
+  gtk_widget_queue_draw(game_state->area);
   return G_SOURCE_CONTINUE;
-  // slider_value_changed(GTK_SLIDER(game_state->slider), user_data);
+}
+
+static void fine_step(GameState *game_state, int delta) {
+  game_state->cursor += delta;
+
+  if (game_state->cursor < 0) {
+    game_state->cursor = 0;
+  } else if (game_state->cursor >
+             game_state->data_len - game_state->fft_window_size) {
+    game_state->cursor = game_state->data_len - game_state->fft_window_size;
+  }
+
+  double slider_val = 100.0 * (double)game_state->cursor /
+                      (game_state->data_len - game_state->fft_window_size);
+  gtk_range_set_value(GTK_RANGE(game_state->slider), slider_val);
+  gtk_widget_queue_draw(game_state->area);
+}
+
+static void left_button_clicked(GtkButton *button, gpointer user_data) {
+  fine_step((GameState *)user_data, -1);
+}
+
+static void right_button_clicked(GtkButton *button, gpointer user_data) {
+  fine_step((GameState *)user_data, 1);
+}
+
+static void play_control_clicked(GtkButton *button, gpointer user_data) {
+  GameState *game_state = (GameState *)user_data;
+
+  game_state->playing = !game_state->playing;
+
+  if (game_state->playing) {
+    gtk_widget_add_tick_callback(game_state->slider, auto_step, game_state,
+                                 NULL);
+  }
+
+  gtk_button_set_label(button, game_state->playing ? "⏸" : "▶");
+}
+
+static gboolean slider_user_input(GtkRange *slider, GtkScrollType *scroll,
+                                  gdouble value, gpointer user_data) {
+  GameState *game_state = (GameState *)user_data;
+
+  game_state->cursor =
+      (int)floor((double)(game_state->data_len - game_state->fft_window_size) *
+                 value / 100.0);
+  gtk_widget_queue_draw(game_state->area);
+
+  return FALSE;
 }
 
 static void draw_function(GtkDrawingArea *area, cairo_t *cr, int width,
@@ -168,17 +217,39 @@ static void activate(GtkApplication *app, gpointer user_data) {
 
   GtkWidget *slider =
       gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0.0, 100.0, 1.0);
-  g_signal_connect(slider, "value-changed", G_CALLBACK(slider_value_changed),
+  g_signal_connect(slider, "change-value", G_CALLBACK(slider_user_input),
                    game_state);
   gtk_range_set_value(GTK_RANGE(slider), 0.0);
   game_state->slider = slider;
+  game_state->playing = flag_auto;
   if (flag_auto) {
     gtk_widget_add_tick_callback(slider, auto_step, game_state, NULL);
   }
+  gtk_widget_set_hexpand(slider, TRUE);
+
+  GtkWidget *left_step_button = gtk_button_new_with_label("<");
+  g_signal_connect(GTK_BUTTON(left_step_button), "clicked",
+                   G_CALLBACK(left_button_clicked), game_state);
+
+  GtkWidget *right_step_button = gtk_button_new_with_label(">");
+  g_signal_connect(GTK_BUTTON(right_step_button), "clicked",
+                   G_CALLBACK(right_button_clicked), game_state);
+
+  GtkWidget *play_control = gtk_button_new();
+  gtk_button_set_label(GTK_BUTTON(play_control),
+                       game_state->playing ? "⏸" : "▶");
+  g_signal_connect(GTK_BUTTON(play_control), "clicked",
+                   G_CALLBACK(play_control_clicked), game_state);
+
+  GtkWidget *control_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+  gtk_box_append(GTK_BOX(control_box), slider);
+  gtk_box_append(GTK_BOX(control_box), left_step_button);
+  gtk_box_append(GTK_BOX(control_box), right_step_button);
+  gtk_box_append(GTK_BOX(control_box), play_control);
 
   GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   gtk_box_append(GTK_BOX(box), area);
-  gtk_box_append(GTK_BOX(box), slider);
+  gtk_box_append(GTK_BOX(box), control_box);
 
   gtk_window_set_child(GTK_WINDOW(window), box);
   gtk_window_present(GTK_WINDOW(window));
