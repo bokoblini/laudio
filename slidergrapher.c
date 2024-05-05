@@ -11,6 +11,7 @@ static gint flag_fft_window_size = 2048;
 static gint flag_plot_size = 200;
 static gdouble flag_top_val = 100.0;
 static gboolean flag_auto = FALSE;
+static gint flag_auto_speed = 4;
 static GOptionEntry slidergrapher_option_entries[] = {
     {"txtfft_file", 'f', 0, G_OPTION_ARG_FILENAME, &flag_txtfft_file,
      "Name of the input file.", "<txtfft file>"},
@@ -21,6 +22,8 @@ static GOptionEntry slidergrapher_option_entries[] = {
     {"top_val", 't', 0, G_OPTION_ARG_DOUBLE, &flag_top_val,
      "Highest displayed value", "<double>"},
     {"auto", 'a', 0, G_OPTION_ARG_NONE, &flag_auto, "Autoplay", ""},
+    {"auto_speed", 'r', 0, G_OPTION_ARG_INT, &flag_auto_speed,
+     "Speed of the autoplay in number of frames per tick", "<int>"},
     G_OPTION_ENTRY_NULL};
 
 typedef struct {
@@ -32,6 +35,7 @@ typedef struct {
 
   int cursor;
   gboolean playing;
+  int auto_speed;
 
   PFFFT_Setup *setup;
   float *input_buf;
@@ -40,6 +44,7 @@ typedef struct {
 
   GtkWidget *area;
   GtkWidget *slider;
+  GtkWidget *play_control;
 } GameState;
 
 GameState *game_state_new() {
@@ -50,6 +55,10 @@ GameState *game_state_new() {
   }
 
   return game_state;
+}
+
+void set_play_button_label(GameState *game_state) {
+  gtk_button_set_label(GTK_BUTTON(game_state->play_control), game_state->playing ? "⏸" : "▶");
 }
 
 void game_state_init(GameState *game_state, char *file_name,
@@ -97,33 +106,6 @@ void game_state_fft(GameState *game_state, int cursor) {
                           PFFFT_FORWARD);
 }
 
-static gboolean auto_step(GtkWidget *widget, GdkFrameClock *frame_clock,
-                          gpointer user_data) {
-  GameState *game_state = (GameState *)user_data;
-
-  if (!game_state->playing) {
-    return G_SOURCE_REMOVE;
-  }
-
-  if (game_state->cursor >=
-      game_state->data_len - game_state->fft_window_size) {
-    return G_SOURCE_REMOVE;
-  }
-
-  double slider_val = gtk_range_get_value(GTK_RANGE(game_state->slider)) + 0.01;
-  if (slider_val > 100.0) {
-    slider_val = 100.0;
-  }
-
-  gtk_range_set_value(GTK_RANGE(game_state->slider), slider_val);
-
-  game_state->cursor =
-      (int)floor((double)(game_state->data_len - game_state->fft_window_size) *
-                 slider_val / 100.0);
-  gtk_widget_queue_draw(game_state->area);
-  return G_SOURCE_CONTINUE;
-}
-
 static void fine_step(GameState *game_state, int delta) {
   game_state->cursor += delta;
 
@@ -139,6 +121,26 @@ static void fine_step(GameState *game_state, int delta) {
   gtk_range_set_value(GTK_RANGE(game_state->slider), slider_val);
   gtk_widget_queue_draw(game_state->area);
 }
+
+static gboolean auto_step(GtkWidget *widget, GdkFrameClock *frame_clock,
+                          gpointer user_data) {
+  GameState *game_state = (GameState *)user_data;
+
+  if (!game_state->playing) {
+    return G_SOURCE_REMOVE;
+  }
+
+  if (game_state->cursor >=
+      game_state->data_len - game_state->fft_window_size) {
+    game_state->playing = FALSE;
+    set_play_button_label(game_state);
+    return G_SOURCE_REMOVE;
+  }
+
+  fine_step(game_state, game_state->auto_speed);
+  return G_SOURCE_CONTINUE;
+}
+
 
 static void left_button_clicked(GtkButton *button, gpointer user_data) {
   fine_step((GameState *)user_data, -1);
@@ -158,7 +160,7 @@ static void play_control_clicked(GtkButton *button, gpointer user_data) {
                                  NULL);
   }
 
-  gtk_button_set_label(button, game_state->playing ? "⏸" : "▶");
+  set_play_button_label(game_state);
 }
 
 static gboolean slider_user_input(GtkRange *slider, GtkScrollType *scroll,
@@ -238,6 +240,8 @@ static void activate(GtkApplication *app, gpointer user_data) {
   }
   gtk_widget_set_hexpand(slider, TRUE);
 
+  game_state->auto_speed = flag_auto_speed;
+
   GtkWidget *left_step_button = gtk_button_new_with_label("<");
   g_signal_connect(GTK_BUTTON(left_step_button), "clicked",
                    G_CALLBACK(left_button_clicked), game_state);
@@ -247,8 +251,8 @@ static void activate(GtkApplication *app, gpointer user_data) {
                    G_CALLBACK(right_button_clicked), game_state);
 
   GtkWidget *play_control = gtk_button_new();
-  gtk_button_set_label(GTK_BUTTON(play_control),
-                       game_state->playing ? "⏸" : "▶");
+  game_state->play_control = play_control;
+  set_play_button_label(game_state);
   g_signal_connect(GTK_BUTTON(play_control), "clicked",
                    G_CALLBACK(play_control_clicked), game_state);
 
