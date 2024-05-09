@@ -8,7 +8,7 @@
 
 static gchar *flag_txtfft_file = NULL;
 static gint flag_fft_window_size = 2048;
-static gint flag_plot_size = 200;
+static gdouble flag_plot_size = 200;
 static gdouble flag_top_val = 100.0;
 static gboolean flag_auto = FALSE;
 static gint flag_auto_speed = 4;
@@ -17,8 +17,8 @@ static GOptionEntry slidergrapher_option_entries[] = {
      "Name of the input file.", "<txtfft file>"},
     {"fft_window_size", 's', 0, G_OPTION_ARG_INT, &flag_fft_window_size,
      "Size of the fft window", "<int>"},
-    {"plot_size", 'p', 0, G_OPTION_ARG_INT, &flag_plot_size,
-     "Part of the fft window to be drawn", "<int>"},
+    {"plot_size", 'p', 0, G_OPTION_ARG_DOUBLE, &flag_plot_size,
+     "Part of the fft window to be drawn", "<double>"},
     {"top_val", 't', 0, G_OPTION_ARG_DOUBLE, &flag_top_val,
      "Highest displayed value", "<double>"},
     {"auto", 'a', 0, G_OPTION_ARG_NONE, &flag_auto, "Autoplay", ""},
@@ -31,11 +31,14 @@ typedef struct {
   int data_len;
 
   int fft_window_size;
-  int plot_size;
+  double plot_size;
+  double top_val;
 
   int cursor;
   gboolean playing;
   int auto_speed;
+
+  float *abs_buf;
 
   PFFFT_Setup *setup;
   float *input_buf;
@@ -45,6 +48,8 @@ typedef struct {
   GtkWidget *area;
   GtkWidget *slider;
   GtkWidget *play_control;
+
+  gboolean shift_pressed;
 } GameState;
 
 GameState *game_state_new() {
@@ -58,11 +63,12 @@ GameState *game_state_new() {
 }
 
 void set_play_button_label(GameState *game_state) {
-  gtk_button_set_label(GTK_BUTTON(game_state->play_control), game_state->playing ? "⏸" : "▶");
+  gtk_button_set_label(GTK_BUTTON(game_state->play_control),
+                       game_state->playing ? "⏸" : "▶");
 }
 
 void game_state_init(GameState *game_state, char *file_name,
-                     int fft_window_size, int plot_size) {
+                     int fft_window_size, double plot_size, double top_val) {
   int rc = read_txtfft(file_name, &game_state->data, &game_state->data_len);
   if (rc < 0) {
     fprintf(stderr, "read_txtfft failed\n");
@@ -71,6 +77,7 @@ void game_state_init(GameState *game_state, char *file_name,
 
   game_state->fft_window_size = fft_window_size;
   game_state->plot_size = flag_plot_size;
+  game_state->top_val = flag_top_val;
 
   game_state->cursor = 0;
 
@@ -96,6 +103,14 @@ void game_state_init(GameState *game_state, char *file_name,
     fprintf(stderr, "pffft_aligned_malloc failed to allocate memory\n");
     exit(1);
   }
+
+  game_state->abs_buf = (float *)malloc(fft_window_size / 2 * sizeof(float));
+  if (!game_state->abs_buf) {
+    fprintf(stderr, "malloc failed to allocate memory\n");
+    exit(1);
+  }
+
+  game_state->shift_pressed = TRUE;
 }
 
 void game_state_fft(GameState *game_state, int cursor) {
@@ -104,6 +119,10 @@ void game_state_fft(GameState *game_state, int cursor) {
   pffft_transform_ordered(game_state->setup, game_state->input_buf,
                           game_state->output_buf, game_state->work_buf,
                           PFFFT_FORWARD);
+  for (int i = 0; i < game_state->fft_window_size / 2; ++i) {
+    game_state->abs_buf[i] = sqrt(pow(game_state->output_buf[i * 2], 2.0) +
+                                  pow(game_state->output_buf[i * 2 + 1], 2.0));
+  }
 }
 
 static void fine_step(GameState *game_state, int delta) {
@@ -141,7 +160,6 @@ static gboolean auto_step(GtkWidget *widget, GdkFrameClock *frame_clock,
   return G_SOURCE_CONTINUE;
 }
 
-
 static void left_button_clicked(GtkButton *button, gpointer user_data) {
   fine_step((GameState *)user_data, -1);
 }
@@ -175,6 +193,37 @@ static gboolean slider_user_input(GtkRange *slider, GtkScrollType *scroll,
   return FALSE;
 }
 
+static gboolean scroll_input(GtkEventControllerScroll *scroll_input, gdouble dx,
+                             gdouble dy, gpointer user_data) {
+  GameState *game_state = (GameState *)user_data;
+
+  fprintf(stderr, "%f\n", dy);
+
+  if (game_state->shift_pressed) {
+    game_state->plot_size = game_state->plot_size * (1.0 + 0.1 * dy);
+    if (game_state->plot_size >= game_state->fft_window_size) {
+      game_state->plot_size = game_state->fft_window_size;
+    }
+    gtk_widget_queue_draw(game_state->area);
+  } else {
+    game_state->top_val = game_state->top_val * (1.0 + 0.1 * dy);
+    gtk_widget_queue_draw(game_state->area);
+  }
+  return TRUE;
+}
+
+static gboolean modifier_user_input(GtkEventControllerKey *modifier_controller,
+                                    GdkModifierType modifier_type,
+                                    gpointer user_data) {
+  GameState *game_state = (GameState *)user_data;
+
+  game_state->shift_pressed = !game_state->shift_pressed;
+  
+  fprintf(stderr, "%d", game_state->shift_pressed);
+  
+  return TRUE;
+}
+
 static void draw_function(GtkDrawingArea *area, cairo_t *cr, int width,
                           int height, gpointer data) {
   GameState *game_state = (GameState *)data;
@@ -189,17 +238,28 @@ static void draw_function(GtkDrawingArea *area, cairo_t *cr, int width,
   color.green = 0.0f;
   color.alpha = 1.0f;
 
+  GdkRGBA blue_color;
+  blue_color.red = 0.0f;
+  blue_color.blue = 1.0f;
+  blue_color.green = 0.0f;
+  blue_color.alpha = 1.0f;
+
+  // cairo_set_source_rgb (cr, 0.0, 0.0, 0.0);
+  // cairo_paint(cr);
+
   double prev_x, prev_y;
 
-  for (int i = 0; i < game_state->plot_size; ++i) {
-    double x = column_size * i + column_size / 2.0;
-    double val = game_state->output_buf[i];
-    double y =
-        val * (double)height / (2.0 * flag_top_val) + (double)height / 2.0;
-    cairo_arc(cr, x, y, 3.0, 0, 2 * G_PI);
-    gdk_cairo_set_source_rgba(cr, &color);
+  gdk_cairo_set_source_rgba(cr, &color);
+  cairo_set_line_width(cr, 1.0);
 
-    cairo_set_line_width(cr, 1.0);
+  for (int i = 0; i < (int)game_state->plot_size; ++i) {
+    double x = column_size * i + column_size / 2.0;
+    double val = -game_state->output_buf[i];
+    double y = val * (double)height / (2.0 * game_state->top_val) +
+               (double)height / 2.0;
+    cairo_arc(cr, x, y, 3.0, 0, 2 * G_PI);
+    cairo_stroke(cr);
+
     if (i != 0) {
       cairo_move_to(cr, prev_x, prev_y);
       cairo_line_to(cr, x, y);
@@ -207,15 +267,33 @@ static void draw_function(GtkDrawingArea *area, cairo_t *cr, int width,
     }
     prev_x = x;
     prev_y = y;
+  }
 
-    cairo_fill(cr);
+  gdk_cairo_set_source_rgba(cr, &blue_color);
+  cairo_set_line_width(cr, 1.0);
+
+  for (int i = 0; i < (int)game_state->plot_size / 2; ++i) {
+    double x = column_size * 2.0 * i + column_size;
+    double val = -game_state->abs_buf[i];
+    double y = val * (double)height / (2.0 * game_state->top_val) +
+               (double)height / 2.0;
+    cairo_arc(cr, x, y, 3.0, 0, 2 * G_PI);
+    cairo_stroke(cr);
+
+    if (i != 0) {
+      cairo_move_to(cr, prev_x, prev_y);
+      cairo_line_to(cr, x, y);
+      cairo_stroke(cr);
+    }
+    prev_x = x;
+    prev_y = y;
   }
 }
 
 static void activate(GtkApplication *app, gpointer user_data) {
   GameState *game_state = (GameState *)user_data;
   game_state_init(game_state, flag_txtfft_file, flag_fft_window_size,
-                  flag_plot_size);
+                  flag_plot_size, flag_top_val);
 
   GtkWidget *window = gtk_application_window_new(app);
   gtk_window_set_title(GTK_WINDOW(window), "Hello");
@@ -225,6 +303,18 @@ static void activate(GtkApplication *app, gpointer user_data) {
   gtk_drawing_area_set_content_height(GTK_DRAWING_AREA(area), 1200);
   gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(area), draw_function,
                                  game_state, NULL);
+
+  GtkEventController *scroll_controller =
+      gtk_event_controller_scroll_new(GTK_EVENT_CONTROLLER_SCROLL_VERTICAL);
+  gtk_widget_add_controller(area, scroll_controller);
+  g_signal_connect(GTK_EVENT_CONTROLLER_SCROLL(scroll_controller), "scroll",
+                   G_CALLBACK(scroll_input), game_state);
+
+  GtkEventController *modifier_button_controller =
+      gtk_event_controller_key_new();
+  gtk_widget_add_controller(window, modifier_button_controller);
+  g_signal_connect(GTK_EVENT_CONTROLLER_KEY(modifier_button_controller),
+                   "modifiers", G_CALLBACK(modifier_user_input), game_state);
 
   game_state->area = area;
 
