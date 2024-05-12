@@ -5,7 +5,7 @@ all: \
 	multitxtfft \
 	gtkpelda \
 	slidergrapher \
-	rawaudioconverter 
+	rawaudioconverter
 
 .PHONY: all
 

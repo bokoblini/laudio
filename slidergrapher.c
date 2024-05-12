@@ -49,7 +49,8 @@ typedef struct {
   GtkWidget *slider;
   GtkWidget *play_control;
 
-  gboolean shift_pressed;
+  gdouble mouse_x;
+  gdouble plot_begin;
 } GameState;
 
 GameState *game_state_new() {
@@ -110,7 +111,8 @@ void game_state_init(GameState *game_state, char *file_name,
     exit(1);
   }
 
-  game_state->shift_pressed = TRUE;
+  game_state->mouse_x = 0;
+  game_state->plot_begin = 0;
 }
 
 void game_state_fft(GameState *game_state, int cursor) {
@@ -197,31 +199,35 @@ static gboolean scroll_input(GtkEventControllerScroll *scroll_input, gdouble dx,
                              gdouble dy, gpointer user_data) {
   GameState *game_state = (GameState *)user_data;
 
-  fprintf(stderr, "%f\n", dy);
+  // fprintf(stderr, "%f\n", dy);
 
-  if (game_state->shift_pressed) {
+  GdkModifierType modifiers = gtk_event_controller_get_current_event_state(GTK_EVENT_CONTROLLER(scroll_input));
+
+  if (modifiers & GDK_SHIFT_MASK) {
     game_state->plot_size = game_state->plot_size * (1.0 + 0.1 * dy);
     if (game_state->plot_size >= game_state->fft_window_size) {
       game_state->plot_size = game_state->fft_window_size;
+    }
+    game_state->plot_begin = game_state->mouse_x - game_state->plot_size / 2;
+    if (game_state->plot_begin >
+        game_state->fft_window_size - game_state->plot_size) {
+      game_state->plot_begin =
+          game_state->fft_window_size - game_state->plot_size;
     }
     gtk_widget_queue_draw(game_state->area);
   } else {
     game_state->top_val = game_state->top_val * (1.0 + 0.1 * dy);
     gtk_widget_queue_draw(game_state->area);
   }
+
   return TRUE;
 }
 
-static gboolean modifier_user_input(GtkEventControllerKey *modifier_controller,
-                                    GdkModifierType modifier_type,
-                                    gpointer user_data) {
+static void mouse_moved_in_area(GtkEventControllerMotion *mouse_movement,
+                                gdouble x, gdouble y, gpointer user_data) {
   GameState *game_state = (GameState *)user_data;
 
-  game_state->shift_pressed = !game_state->shift_pressed;
-  
-  fprintf(stderr, "%d", game_state->shift_pressed);
-  
-  return TRUE;
+  game_state->mouse_x = x;
 }
 
 static void draw_function(GtkDrawingArea *area, cairo_t *cr, int width,
@@ -252,7 +258,8 @@ static void draw_function(GtkDrawingArea *area, cairo_t *cr, int width,
   gdk_cairo_set_source_rgba(cr, &color);
   cairo_set_line_width(cr, 1.0);
 
-  for (int i = 0; i < (int)game_state->plot_size; ++i) {
+  for (int i = game_state->plot_begin;
+       i < (int)game_state->plot_size + game_state->plot_begin; ++i) {
     double x = column_size * i + column_size / 2.0;
     double val = -game_state->output_buf[i];
     double y = val * (double)height / (2.0 * game_state->top_val) +
@@ -310,11 +317,11 @@ static void activate(GtkApplication *app, gpointer user_data) {
   g_signal_connect(GTK_EVENT_CONTROLLER_SCROLL(scroll_controller), "scroll",
                    G_CALLBACK(scroll_input), game_state);
 
-  GtkEventController *modifier_button_controller =
-      gtk_event_controller_key_new();
-  gtk_widget_add_controller(window, modifier_button_controller);
-  g_signal_connect(GTK_EVENT_CONTROLLER_KEY(modifier_button_controller),
-                   "modifiers", G_CALLBACK(modifier_user_input), game_state);
+  GtkEventController *pointer_movement_controller =
+      gtk_event_controller_motion_new();
+  gtk_widget_add_controller(area, pointer_movement_controller);
+  g_signal_connect(GTK_EVENT_CONTROLLER_MOTION(pointer_movement_controller),
+                   "motion", G_CALLBACK(mouse_moved_in_area), game_state);
 
   game_state->area = area;
 
