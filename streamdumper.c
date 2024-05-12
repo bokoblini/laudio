@@ -22,6 +22,8 @@ static void stream_read_callback(pa_stream* s, size_t l, void*) {
             return;
   }
 
+  fprintf(stderr, "frame size: %lu\n", l);
+
   print_audio_data((float*)p, l / sizeof(float));
 
   pa_stream_drop(s);
@@ -39,13 +41,13 @@ static void create_stream(pa_context* context, const char* name,
   fprintf(stderr, "Sample rate: %d\nChannels: %d\n", nss.rate, nss.channels);
 
 
-  struct pa_channel_map mcmap;
-  pa_channel_map_init_stereo(&mcmap);
+  //struct pa_channel_map mcmap;
+  //pa_channel_map_init_stereo(&mcmap);
   char buf[1024];
-  pa_channel_map_snprint(buf, 1024, &mcmap);
+  pa_channel_map_snprint(buf, 1024, cmap);
   fprintf(stderr, "Channelmap: %s\n", buf);
 
-  pa_stream* stream = pa_stream_new(context, serviceid, &nss, &mcmap);
+  pa_stream* stream = pa_stream_new(context, serviceid, &nss, cmap);
   pa_stream_set_state_callback(stream, stream_state_callback, NULL);
   pa_stream_set_read_callback(stream, stream_read_callback, NULL);
   pa_stream_connect_record(stream, name, NULL, (enum pa_stream_flags)0);

@@ -4,7 +4,8 @@ all: \
 	rgen \
 	multitxtfft \
 	gtkpelda \
-	slidergrapher
+	slidergrapher \
+	rawaudioconverter 
 
 .PHONY: all
 
@@ -31,3 +32,6 @@ gtkpelda: gtkpelda.c
 
 slidergrapher: slidergrapher.c loader.c loader.h
 	gcc -Wall -o slidergrapher -I$(PFFFT_DIR) $(shell pkg-config --cflags gtk4) slidergrapher.c loader.c $(shell pkg-config --libs gtk4) $(PFFFT_DIR)/pffft.o -lm
+
+rawaudioconverter: rawaudioconverter.c
+	gcc -Wall -o rawaudioconverter rawaudioconverter.c

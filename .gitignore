@@ -8,3 +8,7 @@
 /multitxtfft
 /gtkpelda
 /slidergrapher
+*.bin
+*.mp3
+/rawaudioconverter
+
