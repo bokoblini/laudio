@@ -201,14 +201,33 @@ static gboolean scroll_input(GtkEventControllerScroll *scroll_input, gdouble dx,
 
   // fprintf(stderr, "%f\n", dy);
 
-  GdkModifierType modifiers = gtk_event_controller_get_current_event_state(GTK_EVENT_CONTROLLER(scroll_input));
+  GdkModifierType modifiers = gtk_event_controller_get_current_event_state(
+      GTK_EVENT_CONTROLLER(scroll_input));
 
   if (modifiers & GDK_SHIFT_MASK) {
-    game_state->plot_size = game_state->plot_size * (1.0 + 0.1 * dy);
+    int width = gtk_widget_get_width(game_state->area);
+    // double column_size = (double)width / (double)game_state->plot_size;
+
+    // double m = (double)game_state->fft_window_size / game_state->plot_size;
+    double xm = (double)game_state->fft_window_size * (double)game_state->mouse_x /
+                (double)width;
+    double z =
+        game_state->plot_size * xm / (double)game_state->fft_window_size +
+        game_state->plot_begin;
+    double c = 1.0 + 0.1 * dy;
+    double t = (c - 1) * (double)game_state->fft_window_size /
+                   game_state->plot_size * z +
+               game_state->plot_begin * (double)game_state->fft_window_size /
+                   game_state->plot_size;
+
+    game_state->plot_size = game_state->plot_size / c;
+    double b2 = t * game_state->plot_size / (double)game_state->fft_window_size;
+
+    game_state->plot_begin = b2;
+
     if (game_state->plot_size >= game_state->fft_window_size) {
       game_state->plot_size = game_state->fft_window_size;
     }
-    game_state->plot_begin = game_state->mouse_x - game_state->plot_size / 2;
     if (game_state->plot_begin >
         game_state->fft_window_size - game_state->plot_size) {
       game_state->plot_begin =
@@ -258,10 +277,10 @@ static void draw_function(GtkDrawingArea *area, cairo_t *cr, int width,
   gdk_cairo_set_source_rgba(cr, &color);
   cairo_set_line_width(cr, 1.0);
 
-  for (int i = game_state->plot_begin;
-       i < (int)game_state->plot_size + game_state->plot_begin; ++i) {
+  for (int i = 0; i < (int)game_state->plot_size; ++i) {
+    int j = i + (int)game_state->plot_begin;
     double x = column_size * i + column_size / 2.0;
-    double val = -game_state->output_buf[i];
+    double val = -game_state->output_buf[j];
     double y = val * (double)height / (2.0 * game_state->top_val) +
                (double)height / 2.0;
     cairo_arc(cr, x, y, 3.0, 0, 2 * G_PI);
@@ -280,8 +299,9 @@ static void draw_function(GtkDrawingArea *area, cairo_t *cr, int width,
   cairo_set_line_width(cr, 1.0);
 
   for (int i = 0; i < (int)game_state->plot_size / 2; ++i) {
+    int j = i + round(game_state->plot_begin / 2.0);
     double x = column_size * 2.0 * i + column_size;
-    double val = -game_state->abs_buf[i];
+    double val = -game_state->abs_buf[j];
     double y = val * (double)height / (2.0 * game_state->top_val) +
                (double)height / 2.0;
     cairo_arc(cr, x, y, 3.0, 0, 2 * G_PI);
