@@ -195,6 +195,17 @@ static gboolean slider_user_input(GtkRange *slider, GtkScrollType *scroll,
   return FALSE;
 }
 
+static void constrain_double(double *x, double min_v, double max_v) {
+  if (*x < min_v) {
+    *x = min_v;
+    return;
+  }
+  if (*x > max_v) {
+    *x = max_v;
+    return;
+  }
+}
+
 static gboolean scroll_input(GtkEventControllerScroll *scroll_input, gdouble dx,
                              gdouble dy, gpointer user_data) {
   GameState *game_state = (GameState *)user_data;
@@ -219,7 +230,10 @@ static gboolean scroll_input(GtkEventControllerScroll *scroll_input, gdouble dx,
                    game_state->plot_size;
 
     game_state->plot_size = game_state->plot_size / c;
+    constrain_double(&game_state->plot_size, 10.0, game_state->fft_window_size);
+
     double b2 = t * game_state->plot_size / (double)game_state->fft_window_size;
+    constrain_double(&b2, 0.0, game_state->fft_window_size - game_state->plot_size);
 
     game_state->plot_begin = b2;
 
