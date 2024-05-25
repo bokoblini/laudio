@@ -35,3 +35,6 @@ slidergrapher: slidergrapher.c loader.c loader.h
 
 rawaudioconverter: rawaudioconverter.c
 	gcc -Wall -o rawaudioconverter rawaudioconverter.c
+
+windowfunction.o: windowfunction.c windowfunction.h
+	gcc -Wall -c windowfunction.c
