@@ -12,6 +12,7 @@ static gdouble flag_plot_size = 200;
 static gdouble flag_top_val = 100.0;
 static gboolean flag_auto = FALSE;
 static gint flag_auto_speed = 4;
+static gboolean flag_log_scale = TRUE;
 static GOptionEntry slidergrapher_option_entries[] = {
     {"txtfft_file", 'f', 0, G_OPTION_ARG_FILENAME, &flag_txtfft_file,
      "Name of the input file.", "<txtfft file>"},
@@ -24,6 +25,8 @@ static GOptionEntry slidergrapher_option_entries[] = {
     {"auto", 'a', 0, G_OPTION_ARG_NONE, &flag_auto, "Autoplay", ""},
     {"auto_speed", 'r', 0, G_OPTION_ARG_INT, &flag_auto_speed,
      "Speed of the autoplay in number of frames per tick", "<int>"},
+    {"log_scale", 'l', 0, G_OPTION_ARG_NONE, &flag_log_scale,
+     "If y-axis should be logarithmic", "<bool>"},
     G_OPTION_ENTRY_NULL};
 
 typedef struct {
@@ -218,8 +221,8 @@ static gboolean scroll_input(GtkEventControllerScroll *scroll_input, gdouble dx,
   if (modifiers & GDK_SHIFT_MASK) {
     int width = gtk_widget_get_width(game_state->area);
 
-    double xm = (double)game_state->fft_window_size * (double)game_state->mouse_x /
-                (double)width;
+    double xm = (double)game_state->fft_window_size *
+                (double)game_state->mouse_x / (double)width;
     double z =
         game_state->plot_size * xm / (double)game_state->fft_window_size +
         game_state->plot_begin;
@@ -233,11 +236,10 @@ static gboolean scroll_input(GtkEventControllerScroll *scroll_input, gdouble dx,
     constrain_double(&game_state->plot_size, 10.0, game_state->fft_window_size);
 
     double b2 = t * game_state->plot_size / (double)game_state->fft_window_size;
-    constrain_double(&b2, 0.0, game_state->fft_window_size - game_state->plot_size);
+    constrain_double(&b2, 0.0,
+                     game_state->fft_window_size - game_state->plot_size);
 
     game_state->plot_begin = b2;
-
-    fprintf(stderr, "plot_begin: %f %f\n", b2, game_state->plot_size  );
 
     gtk_widget_queue_draw(game_state->area);
   } else {
@@ -275,41 +277,64 @@ static void draw_function(GtkDrawingArea *area, cairo_t *cr, int width,
   blue_color.green = 0.0f;
   blue_color.alpha = 1.0f;
 
+  GdkRGBA black_color;
+  black_color.red = 0.0f;
+  black_color.blue = 0.0f;
+  black_color.green = 0.0f;
+  black_color.alpha = 1.0f;
+
   // cairo_set_source_rgb (cr, 0.0, 0.0, 0.0);
   // cairo_paint(cr);
 
-  double prev_x, prev_y;
-
-  gdk_cairo_set_source_rgba(cr, &color);
+  gdk_cairo_set_source_rgba(cr, &black_color);
   cairo_set_line_width(cr, 1.0);
 
+  cairo_move_to(cr, 0.0, height / 2);
+  cairo_line_to(cr, width, height / 2);
+  cairo_stroke(cr);
+
+  double prev_x, prev_y;
   double plot_begin_x = column_size / 2 - game_state->plot_begin * column_size;
 
-  for (int i = 0; i < (int)ceil(game_state->plot_size); ++i) {
-    double x = plot_begin_x + column_size * (i + (int)floor(game_state->plot_begin));
-    double val = -game_state->output_buf[(int)floor(game_state->plot_begin) + i];
-    double y = val * (double)height / (2.0 * game_state->top_val) +
-               (double)height / 2.0;
-    cairo_arc(cr, x, y, 3.0, 0, 2 * G_PI);
-    cairo_stroke(cr);
+  if (!flag_log_scale) {
+    gdk_cairo_set_source_rgba(cr, &color);
+    cairo_set_line_width(cr, 1.0);
 
-    if (i != 0) {
-      cairo_move_to(cr, prev_x, prev_y);
-      cairo_line_to(cr, x, y);
+    for (int i = 0; i < (int)ceil(game_state->plot_size); ++i) {
+      double x =
+          plot_begin_x + column_size * (i + (int)floor(game_state->plot_begin));
+      double val =
+          -game_state->output_buf[(int)floor(game_state->plot_begin) + i];
+      double y = val * (double)height / (2.0 * game_state->top_val) +
+                 (double)height / 2.0;
+      cairo_arc(cr, x, y, 3.0, 0, 2 * G_PI);
       cairo_stroke(cr);
+
+      if (i != 0) {
+        cairo_move_to(cr, prev_x, prev_y);
+        cairo_line_to(cr, x, y);
+        cairo_stroke(cr);
+      }
+      prev_x = x;
+      prev_y = y;
     }
-    prev_x = x;
-    prev_y = y;
   }
 
   gdk_cairo_set_source_rgba(cr, &blue_color);
   cairo_set_line_width(cr, 1.0);
 
   for (int i = 0; i < (int)ceil(game_state->plot_size / 2); ++i) {
-    double x = plot_begin_x + column_size * 2.0 * (i + (int)floor(game_state->plot_begin / 2.0));
-    double val = -game_state->abs_buf[i + (int)floor(game_state->plot_begin / 2.0)];
+    double x =
+        plot_begin_x +
+        column_size * 2.0 * (i + (int)floor(game_state->plot_begin / 2.0));
+    double val =
+        game_state->abs_buf[i + (int)floor(game_state->plot_begin / 2.0)];
+    if (flag_log_scale) {
+      val = -log(val + 1.0);
+    }
     double y = val * (double)height / (2.0 * game_state->top_val) +
                (double)height / 2.0;
+
     cairo_arc(cr, x, y, 3.0, 0, 2 * G_PI);
     cairo_stroke(cr);
 
@@ -324,6 +349,8 @@ static void draw_function(GtkDrawingArea *area, cairo_t *cr, int width,
 }
 
 static void activate(GtkApplication *app, gpointer user_data) {
+  fprintf(stderr, "flag_log_scale: %d\n", flag_log_scale);
+
   GameState *game_state = (GameState *)user_data;
   game_state_init(game_state, flag_txtfft_file, flag_fft_window_size,
                   flag_plot_size, flag_top_val);
