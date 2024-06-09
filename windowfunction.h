@@ -1,5 +1,5 @@
-#ifndef WINDOW_FUNCTION
-#define WINDOW_FUNCTION
+#ifndef LAUDIO_WINDOW_FUNCTION
+#define LAUDIO_WINDOW_FUNCTION
 
 typedef struct {
   float *w;
@@ -9,4 +9,4 @@ void window_function_setup(WindowFunction *wf, int len);
 
 void window_function_apply_hann(WindowFunction *wf, float *fft_window, int len);
 
-#endif //WINDOW_FUNCTION
+#endif // LAUDIO_WINDOW_FUNCTION

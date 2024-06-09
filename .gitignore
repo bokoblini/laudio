@@ -12,3 +12,5 @@
 *.mp3
 /rawaudioconverter
 *.txtraw
+*.txtdata
+/try_window_function

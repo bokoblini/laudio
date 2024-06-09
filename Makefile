@@ -5,7 +5,8 @@ all: \
 	multitxtfft \
 	gtkpelda \
 	slidergrapher \
-	rawaudioconverter
+	rawaudioconverter \
+	try_window_function
 
 .PHONY: all
 
@@ -38,3 +39,6 @@ rawaudioconverter: rawaudioconverter.c
 
 windowfunction.o: windowfunction.c windowfunction.h
 	gcc -Wall -c windowfunction.c
+
+try_window_function: try_window_function.c windowfunction.o windowfunction.h
+	gcc -Wall -o try_window_function try_window_function.c windowfunction.o -lm 
