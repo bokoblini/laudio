@@ -31,8 +31,8 @@ multitxtfft: multitxtfft.c fftlib.o fftlib.h
 gtkpelda: gtkpelda.c
 	gcc -Wall -o gtkpelda $(shell pkg-config --cflags gtk4) gtkpelda.c $(shell pkg-config --libs gtk4)
 
-slidergrapher: slidergrapher.c loader.c loader.h
-	gcc -Wall -o slidergrapher -I$(PFFFT_DIR) $(shell pkg-config --cflags gtk4) slidergrapher.c loader.c $(shell pkg-config --libs gtk4) $(PFFFT_DIR)/pffft.o -lm
+slidergrapher: slidergrapher.c loader.c loader.h windowfunction.o windowfunction.h
+	gcc -Wall -o slidergrapher -I$(PFFFT_DIR) $(shell pkg-config --cflags gtk4) slidergrapher.c loader.c $(shell pkg-config --libs gtk4) $(PFFFT_DIR)/pffft.o windowfunction.o -lm
 
 rawaudioconverter: rawaudioconverter.c
 	gcc -Wall -o rawaudioconverter rawaudioconverter.c

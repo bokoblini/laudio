@@ -5,6 +5,7 @@
 #include <stdlib.h>
 
 #include "loader.h"
+#include "windowfunction.h"
 
 static gchar *flag_txtfft_file = NULL;
 static gint flag_fft_window_size = 2048;
@@ -13,6 +14,9 @@ static gdouble flag_top_val = 100.0;
 static gboolean flag_auto = FALSE;
 static gint flag_auto_speed = 4;
 static gboolean flag_log_scale = TRUE;
+static gboolean flag_show_windowed = TRUE;
+static gboolean flag_show_nonwindowed = FALSE;
+static gboolean flag_show_nonsummed = FALSE;
 static GOptionEntry slidergrapher_option_entries[] = {
     {"txtfft_file", 'f', 0, G_OPTION_ARG_FILENAME, &flag_txtfft_file,
      "Name of the input file.", "<txtfft file>"},
@@ -27,7 +31,20 @@ static GOptionEntry slidergrapher_option_entries[] = {
      "Speed of the autoplay in number of frames per tick", "<int>"},
     {"log_scale", 'l', 0, G_OPTION_ARG_NONE, &flag_log_scale,
      "If y-axis should be logarithmic", "<bool>"},
+    {"show_windowed", 'w', 0, G_OPTION_ARG_NONE, &flag_show_windowed,
+     "Show the Fourier-transform of the windowed function", ""},
+    {"show_nonwindowed", 'o', 0, G_OPTION_ARG_NONE, &flag_show_nonwindowed,
+     "Show the Fourier-transform of the original function", ""},
+    {"show_nonsummed", 'u', 0, G_OPTION_ARG_NONE, &flag_show_nonsummed,
+     "Show the Fourier-transform of the non-summed vectors of original "
+     "function if log_scale is false",
+     ""},
     G_OPTION_ENTRY_NULL};
+
+static GdkRGBA green_color;
+static GdkRGBA black_color;
+static GdkRGBA blue_color;
+static GdkRGBA red_color;
 
 typedef struct {
   float *data;
@@ -42,6 +59,9 @@ typedef struct {
   int auto_speed;
 
   float *abs_buf;
+  float *abs_buf_w;
+
+  WindowFunction wf;
 
   PFFFT_Setup *setup;
   float *input_buf;
@@ -87,6 +107,8 @@ void game_state_init(GameState *game_state, char *file_name,
 
   game_state->setup = pffft_new_setup(fft_window_size, PFFFT_REAL);
 
+  window_function_setup(&game_state->wf, game_state->fft_window_size);
+
   game_state->input_buf =
       (float *)pffft_aligned_malloc(sizeof(float) * fft_window_size);
   if (!game_state->input_buf) {
@@ -114,6 +136,12 @@ void game_state_init(GameState *game_state, char *file_name,
     exit(1);
   }
 
+  game_state->abs_buf_w = (float *)malloc(fft_window_size / 2 * sizeof(float));
+  if (!game_state->abs_buf_w) {
+    fprintf(stderr, "malloc failed to allocate memory\n");
+    exit(1);
+  }
+
   game_state->mouse_x = 0;
   game_state->plot_begin = 0;
 }
@@ -121,12 +149,28 @@ void game_state_init(GameState *game_state, char *file_name,
 void game_state_fft(GameState *game_state, int cursor) {
   memcpy(game_state->input_buf, game_state->data + cursor,
          game_state->fft_window_size * sizeof(float));
-  pffft_transform_ordered(game_state->setup, game_state->input_buf,
-                          game_state->output_buf, game_state->work_buf,
-                          PFFFT_FORWARD);
-  for (int i = 0; i < game_state->fft_window_size / 2; ++i) {
-    game_state->abs_buf[i] = sqrt(pow(game_state->output_buf[i * 2], 2.0) +
-                                  pow(game_state->output_buf[i * 2 + 1], 2.0));
+  if (flag_show_nonwindowed) {
+    pffft_transform_ordered(game_state->setup, game_state->input_buf,
+                            game_state->output_buf, game_state->work_buf,
+                            PFFFT_FORWARD);
+    for (int i = 0; i < game_state->fft_window_size / 2; ++i) {
+      game_state->abs_buf[i] =
+          sqrt(pow(game_state->output_buf[i * 2], 2.0) +
+               pow(game_state->output_buf[i * 2 + 1], 2.0));
+    }
+  }
+
+  if (flag_show_windowed) {
+    window_function_apply_hann(&game_state->wf, game_state->input_buf,
+                               game_state->fft_window_size);
+    pffft_transform_ordered(game_state->setup, game_state->input_buf,
+                            game_state->output_buf, game_state->work_buf,
+                            PFFFT_FORWARD);
+    for (int i = 0; i < game_state->fft_window_size / 2; ++i) {
+      game_state->abs_buf_w[i] =
+          sqrt(pow(game_state->output_buf[i * 2], 2.0) +
+               pow(game_state->output_buf[i * 2 + 1], 2.0));
+    }
   }
 }
 
@@ -257,6 +301,47 @@ static void mouse_moved_in_area(GtkEventControllerMotion *mouse_movement,
   game_state->mouse_x = x;
 }
 
+typedef struct {
+  GtkDrawingArea *area;
+  cairo_t *cr;
+  int width;
+  int height;
+  GameState *game_state;
+  float plot_begin_x;
+  float column_size;
+} DrawContext;
+
+static void draw_single_graph(DrawContext* dc, float* buf, GdkRGBA* color) {
+  gdk_cairo_set_source_rgba(dc->cr, color);
+  cairo_set_line_width(dc->cr, 1.0);
+
+  double prev_x, prev_y;
+
+  for (int i = 0; i < (int)ceil(dc->game_state->plot_size / 2); ++i) {
+    double x =
+        dc->plot_begin_x +
+        dc->column_size * 2.0 * (i + (int)floor(dc->game_state->plot_begin / 2.0));
+    double val =
+        buf[i + (int)floor(dc->game_state->plot_begin / 2.0)];
+    if (flag_log_scale) {
+      val = -log(val + 1.0);
+    }
+    double y = val * (double)dc->height / (2.0 * dc->game_state->top_val) +
+               (double)dc->height / 2.0;
+
+    cairo_arc(dc->cr, x, y, 3.0, 0, 2 * G_PI);
+    cairo_stroke(dc->cr);
+
+    if (i != 0) {
+      cairo_move_to(dc->cr, prev_x, prev_y);
+      cairo_line_to(dc->cr, x, y);
+      cairo_stroke(dc->cr);
+    }
+    prev_x = x;
+    prev_y = y;
+  }
+}
+
 static void draw_function(GtkDrawingArea *area, cairo_t *cr, int width,
                           int height, gpointer data) {
   GameState *game_state = (GameState *)data;
@@ -264,24 +349,6 @@ static void draw_function(GtkDrawingArea *area, cairo_t *cr, int width,
   game_state_fft(game_state, game_state->cursor);
 
   double column_size = (double)width / (double)game_state->plot_size;
-
-  GdkRGBA color;
-  color.red = 1.0f;
-  color.blue = 0.0f;
-  color.green = 0.0f;
-  color.alpha = 1.0f;
-
-  GdkRGBA blue_color;
-  blue_color.red = 0.0f;
-  blue_color.blue = 1.0f;
-  blue_color.green = 0.0f;
-  blue_color.alpha = 1.0f;
-
-  GdkRGBA black_color;
-  black_color.red = 0.0f;
-  black_color.blue = 0.0f;
-  black_color.green = 0.0f;
-  black_color.alpha = 1.0f;
 
   // cairo_set_source_rgb (cr, 0.0, 0.0, 0.0);
   // cairo_paint(cr);
@@ -296,8 +363,8 @@ static void draw_function(GtkDrawingArea *area, cairo_t *cr, int width,
   double prev_x, prev_y;
   double plot_begin_x = column_size / 2 - game_state->plot_begin * column_size;
 
-  if (!flag_log_scale) {
-    gdk_cairo_set_source_rgba(cr, &color);
+  if (!flag_log_scale && flag_show_nonsummed) {
+    gdk_cairo_set_source_rgba(cr, &red_color);
     cairo_set_line_width(cr, 1.0);
 
     for (int i = 0; i < (int)ceil(game_state->plot_size); ++i) {
@@ -320,32 +387,44 @@ static void draw_function(GtkDrawingArea *area, cairo_t *cr, int width,
     }
   }
 
-  gdk_cairo_set_source_rgba(cr, &blue_color);
-  cairo_set_line_width(cr, 1.0);
+  DrawContext dc;
+  dc.area = area;
+  dc.cr = cr;
+  dc.width = width;
+  dc.height = height;
+  dc.game_state = game_state;
+  dc.plot_begin_x = plot_begin_x;
+  dc.column_size = column_size;
 
-  for (int i = 0; i < (int)ceil(game_state->plot_size / 2); ++i) {
-    double x =
-        plot_begin_x +
-        column_size * 2.0 * (i + (int)floor(game_state->plot_begin / 2.0));
-    double val =
-        game_state->abs_buf[i + (int)floor(game_state->plot_begin / 2.0)];
-    if (flag_log_scale) {
-      val = -log(val + 1.0);
-    }
-    double y = val * (double)height / (2.0 * game_state->top_val) +
-               (double)height / 2.0;
-
-    cairo_arc(cr, x, y, 3.0, 0, 2 * G_PI);
-    cairo_stroke(cr);
-
-    if (i != 0) {
-      cairo_move_to(cr, prev_x, prev_y);
-      cairo_line_to(cr, x, y);
-      cairo_stroke(cr);
-    }
-    prev_x = x;
-    prev_y = y;
+  if (flag_show_nonwindowed) {
+    draw_single_graph(&dc, game_state->abs_buf, &blue_color);
   }
+
+  if (flag_show_windowed) {
+    draw_single_graph(&dc, game_state->abs_buf_w, &green_color);
+  }
+}
+
+void init_color_palette() {
+  red_color.red = 1.0f;
+  red_color.blue = 0.0f;
+  red_color.green = 0.0f;
+  red_color.alpha = 1.0f;
+
+  blue_color.red = 0.0f;
+  blue_color.blue = 1.0f;
+  blue_color.green = 0.0f;
+  blue_color.alpha = 0.3f;
+
+  black_color.red = 0.0f;
+  black_color.blue = 0.0f;
+  black_color.green = 0.0f;
+  black_color.alpha = 1.0f;
+
+  green_color.red = 0.0f;
+  green_color.blue = 0.0f;
+  green_color.green = 1.0f;
+  green_color.alpha = 1.0f;
 }
 
 static void activate(GtkApplication *app, gpointer user_data) {
@@ -356,7 +435,7 @@ static void activate(GtkApplication *app, gpointer user_data) {
                   flag_plot_size, flag_top_val);
 
   GtkWidget *window = gtk_application_window_new(app);
-  gtk_window_set_title(GTK_WINDOW(window), "Hello");
+  gtk_window_set_title(GTK_WINDOW(window), "Slidergrapher");
 
   GtkWidget *area = gtk_drawing_area_new();
   gtk_drawing_area_set_content_width(GTK_DRAWING_AREA(area), 1920);
@@ -421,6 +500,7 @@ static void activate(GtkApplication *app, gpointer user_data) {
 }
 
 int main(int argc, char **argv) {
+  init_color_palette();
   GameState *game_state = game_state_new();
   GOptionGroup *options = g_option_group_new(
       "slidergrapher", "slidergrapher options:", "Show slidergrapher options",
