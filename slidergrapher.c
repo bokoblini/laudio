@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "frames.h"
 #include "loader.h"
 #include "windowfunction.h"
 
@@ -13,10 +14,12 @@ static gdouble flag_plot_size = 200;
 static gdouble flag_top_val = 100.0;
 static gboolean flag_auto = FALSE;
 static gint flag_auto_speed = 4;
-static gboolean flag_log_scale = TRUE;
+static gboolean flag_log_scale = FALSE;
 static gboolean flag_show_windowed = TRUE;
 static gboolean flag_show_nonwindowed = FALSE;
 static gboolean flag_show_nonsummed = FALSE;
+static gchar *flag_output_file;
+static gint flag_step_size = 1;
 static GOptionEntry slidergrapher_option_entries[] = {
     {"txtfft_file", 'f', 0, G_OPTION_ARG_FILENAME, &flag_txtfft_file,
      "Name of the input file.", "<txtfft file>"},
@@ -39,6 +42,10 @@ static GOptionEntry slidergrapher_option_entries[] = {
      "Show the Fourier-transform of the non-summed vectors of original "
      "function if log_scale is false",
      ""},
+    {"output_file", 0, 0, G_OPTION_ARG_FILENAME, &flag_output_file,
+     "Name of the output file.", "<output file>"},
+    {"step_size", 'e', 0, G_OPTION_ARG_INT, &flag_step_size,
+     "Number of frames to skip with the buttons", "<int>"},
     G_OPTION_ENTRY_NULL};
 
 static GdkRGBA green_color;
@@ -53,6 +60,11 @@ typedef struct {
   int fft_window_size;
   double plot_size;
   double top_val;
+
+  int width;
+  int height;
+  float plot_begin_x;
+  float column_size;
 
   int cursor;
   gboolean playing;
@@ -74,6 +86,12 @@ typedef struct {
 
   gdouble mouse_x;
   gdouble plot_begin;
+
+  int step_size;
+
+  int saving;
+  Frames frames;
+  GtkWidget *save_button;
 } GameState;
 
 GameState *game_state_new() {
@@ -144,6 +162,9 @@ void game_state_init(GameState *game_state, char *file_name,
 
   game_state->mouse_x = 0;
   game_state->plot_begin = 0;
+
+  game_state->saving = 0;
+  frames_setup(&game_state->frames);
 }
 
 void game_state_fft(GameState *game_state, int cursor) {
@@ -174,6 +195,47 @@ void game_state_fft(GameState *game_state, int cursor) {
   }
 }
 
+static void init_frame_len(GameState *game_state) {
+  int len = 0;
+  for (int i = 0; i < (int)ceil(game_state->plot_size / 2); ++i) {
+    double x = game_state->plot_begin_x +
+               game_state->column_size * 2.0 *
+                   (i + (int)floor(game_state->plot_begin / 2.0));
+    if (x < 0.0) {
+      continue;
+    } else if (x > game_state->width) {
+      break;
+    }
+    ++len;
+  }
+  game_state->frames.frame_len = len;
+}
+
+static void save_frame(GameState *game_state) {
+  if (!game_state->frames.data_len) {
+    init_frame_len(game_state);
+  }
+
+  float *frame = frames_add(&game_state->frames);
+  int sample_idx = 0;
+  for (int i = 0; i < (int)ceil(game_state->plot_size / 2); ++i) {
+    double x = game_state->plot_begin_x +
+               game_state->column_size * 2.0 *
+                   (i + (int)floor(game_state->plot_begin / 2.0));
+    if (x < 0.0) {
+      continue;
+    } else if (x > game_state->width) {
+      break;
+    }
+    double val =
+        game_state->abs_buf_w[i + (int)floor(game_state->plot_begin / 2.0)];
+    if (flag_log_scale) {
+      val = -log(val + 1.0);
+    }
+    frame[sample_idx++] = -val;
+  }
+}
+
 static void fine_step(GameState *game_state, int delta) {
   game_state->cursor += delta;
 
@@ -188,6 +250,9 @@ static void fine_step(GameState *game_state, int delta) {
                       (game_state->data_len - game_state->fft_window_size);
   gtk_range_set_value(GTK_RANGE(game_state->slider), slider_val);
   gtk_widget_queue_draw(game_state->area);
+  if (game_state->saving) {
+    save_frame(game_state);
+  }
 }
 
 static gboolean auto_step(GtkWidget *widget, GdkFrameClock *frame_clock,
@@ -210,11 +275,13 @@ static gboolean auto_step(GtkWidget *widget, GdkFrameClock *frame_clock,
 }
 
 static void left_button_clicked(GtkButton *button, gpointer user_data) {
-  fine_step((GameState *)user_data, -1);
+  GameState *game_state = (GameState *)user_data;
+  fine_step((GameState *)user_data, -game_state->step_size);
 }
 
 static void right_button_clicked(GtkButton *button, gpointer user_data) {
-  fine_step((GameState *)user_data, 1);
+  GameState *game_state = (GameState *)user_data;
+  fine_step((GameState *)user_data, game_state->step_size);
 }
 
 static void play_control_clicked(GtkButton *button, gpointer user_data) {
@@ -304,30 +371,26 @@ static void mouse_moved_in_area(GtkEventControllerMotion *mouse_movement,
 typedef struct {
   GtkDrawingArea *area;
   cairo_t *cr;
-  int width;
-  int height;
   GameState *game_state;
-  float plot_begin_x;
-  float column_size;
 } DrawContext;
 
-static void draw_single_graph(DrawContext* dc, float* buf, GdkRGBA* color) {
+static void draw_single_graph(DrawContext *dc, float *buf, GdkRGBA *color) {
   gdk_cairo_set_source_rgba(dc->cr, color);
   cairo_set_line_width(dc->cr, 1.0);
 
   double prev_x, prev_y;
 
   for (int i = 0; i < (int)ceil(dc->game_state->plot_size / 2); ++i) {
-    double x =
-        dc->plot_begin_x +
-        dc->column_size * 2.0 * (i + (int)floor(dc->game_state->plot_begin / 2.0));
-    double val =
-        buf[i + (int)floor(dc->game_state->plot_begin / 2.0)];
+    double x = dc->game_state->plot_begin_x +
+               dc->game_state->column_size * 2.0 *
+                   (i + (int)floor(dc->game_state->plot_begin / 2.0));
+    double val = buf[i + (int)floor(dc->game_state->plot_begin / 2.0)];
     if (flag_log_scale) {
-      val = -log(val + 1.0);
+      val = log(val + 1.0);
     }
-    double y = val * (double)dc->height / (2.0 * dc->game_state->top_val) +
-               (double)dc->height / 2.0;
+    double y = -val * (double)dc->game_state->height /
+                   (2.0 * dc->game_state->top_val) +
+               (double)dc->game_state->height / 2.0;
 
     cairo_arc(dc->cr, x, y, 3.0, 0, 2 * G_PI);
     cairo_stroke(dc->cr);
@@ -390,11 +453,12 @@ static void draw_function(GtkDrawingArea *area, cairo_t *cr, int width,
   DrawContext dc;
   dc.area = area;
   dc.cr = cr;
-  dc.width = width;
-  dc.height = height;
   dc.game_state = game_state;
-  dc.plot_begin_x = plot_begin_x;
-  dc.column_size = column_size;
+
+  game_state->width = width;
+  game_state->height = height;
+  game_state->column_size = column_size;
+  game_state->plot_begin_x = plot_begin_x;
 
   if (flag_show_nonwindowed) {
     draw_single_graph(&dc, game_state->abs_buf, &blue_color);
@@ -403,6 +467,64 @@ static void draw_function(GtkDrawingArea *area, cairo_t *cr, int width,
   if (flag_show_windowed) {
     draw_single_graph(&dc, game_state->abs_buf_w, &green_color);
   }
+}
+
+static void print_button_clicked(GtkButton *button, gpointer data) {
+  GameState *game_state = (GameState *)data;
+
+  FILE *output_file = fopen(flag_output_file, "w");
+  if (!output_file) {
+    perror("fopen outputfile");
+    exit(1);
+  }
+  if (!game_state->saving) {
+    for (int i = 0; i < (int)ceil(game_state->plot_size / 2); ++i) {
+      double x = game_state->plot_begin_x +
+                 game_state->column_size * 2.0 *
+                     (i + (int)floor(game_state->plot_begin / 2.0));
+      if (x < 0.0) {
+        continue;
+      } else if (x > game_state->width) {
+        break;
+      }
+      double val =
+          game_state->abs_buf_w[i + (int)floor(game_state->plot_begin / 2.0)];
+      if (flag_log_scale) {
+        val = -log(val + 1.0);
+      }
+      if (0 > fprintf(output_file, "%d %f\n", i, -val)) {
+        fprintf(stderr, "file print failed\n");
+        fclose(output_file);
+        exit(1);
+      }
+    }
+  } else {
+    for (int i = 0; i < game_state->frames.data_len; i++) {
+      if (i) {
+        fprintf(output_file, "\n");
+      }
+      for (int j = 0; j < game_state->frames.frame_len; j++) {
+        float *current = game_state->frames.data[i];
+        if (0 > fprintf(output_file, "%f\n", current[j])) {
+          fprintf(stderr, "file print failed\n");
+          fclose(output_file);
+          exit(1);
+        }
+      }
+    }
+  }
+  fclose(output_file);
+}
+
+void set_data_button_label(GameState *game_state) {
+  gtk_button_set_label(GTK_BUTTON(game_state->save_button),
+                       game_state->saving ? "s1" : "s0");
+}
+
+static void save_button_clicked(GtkButton *button, gpointer data) {
+  GameState *game_state = (GameState *)data;
+  game_state->saving = !game_state->saving;
+  set_data_button_label(game_state);
 }
 
 void init_color_palette() {
@@ -479,17 +601,31 @@ static void activate(GtkApplication *app, gpointer user_data) {
   g_signal_connect(GTK_BUTTON(right_step_button), "clicked",
                    G_CALLBACK(right_button_clicked), game_state);
 
+  game_state->step_size = flag_step_size;
+
   GtkWidget *play_control = gtk_button_new();
   game_state->play_control = play_control;
   set_play_button_label(game_state);
   g_signal_connect(GTK_BUTTON(play_control), "clicked",
                    G_CALLBACK(play_control_clicked), game_state);
 
+  GtkWidget *print_data_button = gtk_button_new_with_label("pr");
+  g_signal_connect(GTK_BUTTON(print_data_button), "clicked",
+                   G_CALLBACK(print_button_clicked), game_state);
+
+  GtkWidget *save_data_button = gtk_button_new_with_label("svf");
+  game_state->save_button = save_data_button;
+  set_data_button_label(game_state);
+  g_signal_connect(GTK_BUTTON(save_data_button), "clicked",
+                   G_CALLBACK(save_button_clicked), game_state);
+
   GtkWidget *control_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
   gtk_box_append(GTK_BOX(control_box), slider);
   gtk_box_append(GTK_BOX(control_box), left_step_button);
   gtk_box_append(GTK_BOX(control_box), right_step_button);
   gtk_box_append(GTK_BOX(control_box), play_control);
+  gtk_box_append(GTK_BOX(control_box), print_data_button);
+  gtk_box_append(GTK_BOX(control_box), save_data_button);
 
   GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   gtk_box_append(GTK_BOX(box), area);
