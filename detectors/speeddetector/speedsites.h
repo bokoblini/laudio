@@ -4,16 +4,14 @@
 #include "../../frames.h"
 
 typedef struct {
-  char* input_file;
-  int interval;
-  double growth;
+  int n;
+  double g;
   Frames *frames;
-  double speed;
-} InputData;
+  int frames_begin;
+  int frames_end;
+} FastChangingDetectorInput;
 
-InputData input_data_setup(int interval, double growth, Frames* frames);
-char* output(InputData input);
-
-
+// output must be a previously allocated int* with the length of a frame
+void detect_fast_changing(int *output, FastChangingDetectorInput *input);
 
 #endif // LAUDIO_SPEEDSITES_H

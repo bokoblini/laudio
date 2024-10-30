@@ -1,26 +1,28 @@
 #include "speedsites.h"
 
-InputData input_data_setup(int interval, double growth, Frames* frames) {
-  double speed = growth / (double)interval;
+#include <stdlib.h>
+#include <string.h>
 
-  InputData input_data;
-  input_data.interval = interval;
-  input_data.growth = growth;
-  input_data.frames = frames;
-  input_data.speed = speed;
+void detect_fast_changing(int *output, FastChangingDetectorInput *input) {
+  int *fast_changing_list =
+      (int *)malloc(input->frames->frame_len * sizeof(int));
 
-  return input_data;
-}
+  memset(fast_changing_list, 0, sizeof(int) * input->frames->frame_len);
+  memset(output, 0, sizeof(int) * input->frames->frame_len);
 
-OutputData run_speed_site_detector(OutputData output, InputData input) {
-  float* return_list = (float*)malloc(input.frames->frame_len * sizeof(float));
+  for (int i = input->frames_begin + 1; i < input->frames_end; ++i) {
+    float *prev = input->frames->data[i - 1];
+    float *curr = input->frames->data[i];
 
-  
-
-  free(input);
-  return output;
-}
-
-free_output_data(OutputData output) {
-  free(output);
+    for (int j = 0; j < input->frames->frame_len; ++j) {
+      if (curr[j] - prev[j] >= input->g) {
+        ++fast_changing_list[j];
+      } else {
+        fast_changing_list[j] = 0;
+      }
+      if (fast_changing_list[j] >= input->n) {
+        output[j] = 1;
+      }
+    }
+  }
 }
