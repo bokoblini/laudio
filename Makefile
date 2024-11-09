@@ -6,7 +6,8 @@ all: \
 	gtkpelda \
 	slidergrapher \
 	rawaudioconverter \
-	try_window_function
+	try_window_function \
+	detector_tester
 
 .PHONY: all
 
@@ -45,3 +46,6 @@ try_window_function: try_window_function.c windowfunction.o windowfunction.h
 
 frames.o: frames.c frames.h
 	gcc -Wall -c frames.c
+
+detector_tester: detector_tester.c detectors/speeddetector/speedsites.h detectors/speeddetector/speedsites.o frames.o
+	gcc -Wall -o detector_tester detector_tester.c detectors/speeddetector/speedsites.o frames.o

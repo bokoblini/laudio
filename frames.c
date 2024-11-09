@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 void frames_setup(Frames* frames) {
   frames->data = NULL;
@@ -38,4 +39,47 @@ float* frames_add(Frames* frames) {
   frames->data[frames->data_len - 1] =
       (float*)malloc(frames->frame_len * sizeof(float));
   return frames->data[frames->data_len - 1];
+}
+
+void save_frame(Frames *frames, float *dbuf, int frame_len) {
+  if (frames->frame_len == 0) {
+    frames->frame_len = frame_len;
+  } else {
+    if (frames->frame_len != frame_len) {
+      fprintf(stderr, "frame sizes do not match\n");
+      exit(1);
+    }
+  }
+
+  float* new_frame = frames_add(frames);
+
+  memcpy(new_frame, dbuf, frame_len*sizeof(float));
+}
+
+void frames_load_from_file(Frames* frames, FILE* input_file) { 
+  char buf[1024];
+  float dbuf[65536];
+
+  int sample_idx = 0;
+
+  while (fgets(buf, 1024, input_file)) {
+    if (*buf == '\n') {
+      save_frame(frames, dbuf, sample_idx);
+      sample_idx = 0;
+      continue;
+    }
+
+    float f;
+    int sr = sscanf(buf, "%f", &f);
+    if (sr != 1) {
+      fprintf(stderr, "failed while reading\n");
+      exit(1);
+    }
+
+    dbuf[sample_idx++] = f;
+
+  }
+  if (sample_idx > 0) {
+    save_frame(frames, dbuf, sample_idx);
+  }
 }
