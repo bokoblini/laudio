@@ -19,7 +19,7 @@ static void stream_read_callback(pa_stream* s, size_t l, void*) {
   if (pa_stream_peek(s, &p, &l) < 0) {
     fprintf(stderr, "stream peek error: %s\n",
             pa_strerror(pa_context_errno(context)));
-            return;
+    return;
   }
 
   fprintf(stderr, "frame size: %lu\n", l);
@@ -40,9 +40,8 @@ static void create_stream(pa_context* context, const char* name,
   nss.channels = ss->channels;
   fprintf(stderr, "Sample rate: %d\nChannels: %d\n", nss.rate, nss.channels);
 
-
-  //struct pa_channel_map mcmap;
-  //pa_channel_map_init_stereo(&mcmap);
+  // struct pa_channel_map mcmap;
+  // pa_channel_map_init_stereo(&mcmap);
   char buf[1024];
   pa_channel_map_snprint(buf, 1024, cmap);
   fprintf(stderr, "Channelmap: %s\n", buf);

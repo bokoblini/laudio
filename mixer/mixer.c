@@ -1,7 +1,17 @@
 #include <gtk/gtk.h>
 #include <stdio.h>
 
+#include "audio.h"
+
+typedef struct {
+  LAudio *l_audio;
+} LMixer;
+
 static void activate(GtkApplication *app, gpointer user_data) {
+  LMixer *l_mixer = (LMixer *)user_data;
+
+  l_audio_init(l_mixer->l_audio);
+
   GtkWidget *slider_left =
       gtk_scale_new_with_range(GTK_ORIENTATION_VERTICAL, 0.0, 100.0, 1.0);
   gtk_range_set_value(GTK_RANGE(slider_left), 0.0);
@@ -18,18 +28,24 @@ static void activate(GtkApplication *app, gpointer user_data) {
   gtk_center_box_set_center_widget(GTK_CENTER_BOX(center_box), control_box);
 
   GtkWidget *window = gtk_application_window_new(app);
-  gtk_window_set_title(GTK_WINDOW(window), "lAudio Supermixer Platinum");
+  gtk_window_set_title(GTK_WINDOW(window), "LAudio Supermixer Platinum");
+  gtk_window_set_default_size(GTK_WINDOW(window), 480, 720);
 
   gtk_window_set_child(GTK_WINDOW(window), center_box);
   gtk_window_present(GTK_WINDOW(window));
 }
 
 int main(int argc, char **argv) {
+  LAudio l_audio;
+  LMixer l_mixer;
+  l_mixer.l_audio = &l_audio;
+
   GtkApplication *app = gtk_application_new(NULL, G_APPLICATION_DEFAULT_FLAGS);
-  g_signal_connect(app, "activate", G_CALLBACK(activate), NULL);
+  g_signal_connect(app, "activate", G_CALLBACK(activate), &l_mixer);
 
   int status = g_application_run(G_APPLICATION(app), argc, argv);
   g_object_unref(app);
 
+  l_audio_destruct(&l_audio);
   return status;
 }
