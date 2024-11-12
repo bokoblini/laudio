@@ -15,10 +15,12 @@ static void activate(GtkApplication *app, gpointer user_data) {
   GtkWidget *slider_left =
       gtk_scale_new_with_range(GTK_ORIENTATION_VERTICAL, 0.0, 100.0, 1.0);
   gtk_range_set_value(GTK_RANGE(slider_left), 0.0);
-
+  gtk_range_set_inverted(GTK_RANGE(slider_left), TRUE);
+  
   GtkWidget *slider_right =
       gtk_scale_new_with_range(GTK_ORIENTATION_VERTICAL, 0.0, 100.0, 1.0);
   gtk_range_set_value(GTK_RANGE(slider_right), 0.0);
+  gtk_range_set_inverted(GTK_RANGE(slider_right), TRUE);
 
   GtkWidget *control_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 32);
   gtk_box_append(GTK_BOX(control_box), slider_left);
