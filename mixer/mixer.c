@@ -7,6 +7,18 @@ typedef struct {
   LAudio *l_audio;
 } LMixer;
 
+static gboolean slider_right_user_input(GtkRange *slider, GtkScrollType *scroll, gdouble value, gpointer user_data) {
+  fprintf(stderr, "new value right: %f \n", value);
+
+  return FALSE;
+}
+
+static gboolean slider_left_user_input(GtkRange *slider, GtkScrollType *scroll, gdouble value, gpointer user_data) {
+  fprintf(stderr, "new value left: %f \n", value);
+
+  return FALSE;
+}
+
 static void activate(GtkApplication *app, gpointer user_data) {
   LMixer *l_mixer = (LMixer *)user_data;
 
@@ -16,11 +28,13 @@ static void activate(GtkApplication *app, gpointer user_data) {
       gtk_scale_new_with_range(GTK_ORIENTATION_VERTICAL, 0.0, 100.0, 1.0);
   gtk_range_set_value(GTK_RANGE(slider_left), 0.0);
   gtk_range_set_inverted(GTK_RANGE(slider_left), TRUE);
-  
+  g_signal_connect(slider_left, "change-value", G_CALLBACK(slider_left_user_input), user_data);
+
   GtkWidget *slider_right =
       gtk_scale_new_with_range(GTK_ORIENTATION_VERTICAL, 0.0, 100.0, 1.0);
   gtk_range_set_value(GTK_RANGE(slider_right), 0.0);
   gtk_range_set_inverted(GTK_RANGE(slider_right), TRUE);
+  g_signal_connect(slider_right, "change-value", G_CALLBACK(slider_right_user_input), user_data);
 
   GtkWidget *control_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 32);
   gtk_box_append(GTK_BOX(control_box), slider_left);
