@@ -15,3 +15,6 @@
 *.txtdata
 /try_window_function
 /x.txt
+*.txt
+/detector_tester_area
+/detector_tester_area_graph
