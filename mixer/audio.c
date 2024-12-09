@@ -34,10 +34,10 @@ static void stream_read_callback(pa_stream* s, size_t l, void*) {
 
 static void stream_state_callback(pa_stream* s, void*) {}
 
-void l_audio_set_volume(LAudio *l_audio, double volume) {
+void l_audio_set_volume(LAudio *l_audio, double volume, int channel) {
   pa_cvolume c_volume;
   pa_cvolume_init(&c_volume);
-  pa_cvolume_set(&c_volume, 1, pa_sw_volume_from_linear(volume/100.0));
+  pa_cvolume_set(&c_volume, channel, pa_sw_volume_from_linear(volume/100.0));
   pa_context_set_source_volume_by_index(l_audio->ctx, l_audio->source_index, &c_volume, NULL, NULL);
   fprintf(stderr, "kakukk\n");
 }

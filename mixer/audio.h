@@ -16,6 +16,6 @@ typedef struct {
 void l_audio_init(LAudio* l_audio);
 void l_audio_destruct(LAudio *l_audio);
 
-void l_audio_set_volume(LAudio *l_audio, double volume);
+void l_audio_set_volume(LAudio *l_audio, double volume, int channel);
 
 #endif  // LAUDIO_MIXER_AUDIO_H

@@ -8,8 +8,12 @@ typedef struct {
 } LMixer;
 
 static gboolean slider_right_user_input(GtkRange *slider, GtkScrollType *scroll, gdouble value, gpointer user_data) {
+  LMixer *l_mixer = (LMixer*)user_data;
+
   fprintf(stderr, "new value right: %f \n", value);
 
+  l_audio_set_volume(l_mixer->l_audio, value, 2);
+  return FALSE;
   return FALSE;
 }
 
@@ -18,7 +22,7 @@ static gboolean slider_left_user_input(GtkRange *slider, GtkScrollType *scroll, 
 
   fprintf(stderr, "new value left: %f \n", value);
 
-  l_audio_set_volume(l_mixer->l_audio, value);
+  l_audio_set_volume(l_mixer->l_audio, value, 1);
   return FALSE;
 }
 

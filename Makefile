@@ -7,7 +7,9 @@ all: \
 	slidergrapher \
 	rawaudioconverter \
 	try_window_function \
-	detector_tester
+	detector_tester \
+	detector_tester_area \
+	detector_tester_area_graph
 
 .PHONY: all
 
@@ -49,3 +51,9 @@ frames.o: frames.c frames.h
 
 detector_tester: detector_tester.c detectors/speeddetector/speedsites.h detectors/speeddetector/speedsites.o frames.o
 	gcc -Wall -o detector_tester detector_tester.c detectors/speeddetector/speedsites.o frames.o
+
+detector_tester_area: detector_tester_area.c detectors/areadetector/areadetector.h detectors/areadetector/areadetector.o frames.o
+	gcc -Wall -o detector_tester_area detector_tester_area.c detectors/areadetector/areadetector.o frames.o
+
+detector_tester_area_graph: detector_tester_area_graph.c frames.o
+	gcc -Wall -o detector_tester_area_graph detector_tester_area_graph.c frames.o
