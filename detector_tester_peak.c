@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "detectors/areadetector/areadetector.h"
+#include "detectors/areadetector/peakdetector.h"
 #include "frames.h"
 
-// args: Filename, number of frame, width, area
+// args: Filename, max height, frame_num 
 int main(int argc, char* argv[]) {
   FILE* input_file = fopen(argv[1], "r");
   if (!input_file) {
@@ -19,26 +19,23 @@ int main(int argc, char* argv[]) {
 
   fprintf(stderr, "data_len: %d\n", frames.data_len);
 
-  AreaDetectorInput input;
-  int rv = sscanf(argv[4], "%f", &input.area);
-  if (!rv) {
-    fprintf(stderr, "sscanf failed\n");
-  }
+  PeakDetectorInput input;
   input.frames = &frames;
-  rv = sscanf(argv[2], "%d", &input.frameth);
-  if (!rv) {
-    fprintf(stderr, "sscanf failed\n");
-  }
-  rv = sscanf(argv[3], "%d", &input.width);
+
+  int rv = sscanf(argv[2], "%f", &input.height);
   if (!rv) {
     fprintf(stderr, "sscanf failed\n");
   }
 
-  int* detector_out =
-      (int*)malloc((frames.frame_len - input.width) * sizeof(int));
-  detect_area(&input, detector_out);
+  rv = sscanf(argv[3], "%d", &input.frame_num);
+  if (!rv) {
+    fprintf(stderr, "sscanf failed\n");
+  }
 
-  for (int i = 0; i < frames.frame_len - input.width; ++i) {
+  int* detector_out = (int*)malloc(frames.frame_len * sizeof(int));
+  detect_peak(&input, detector_out);
+
+  for (int i = 0; i < frames.frame_len; ++i) {
     printf("%d", detector_out[i]);
   }
   printf("\n");

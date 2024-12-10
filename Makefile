@@ -9,7 +9,9 @@ all: \
 	try_window_function \
 	detector_tester \
 	detector_tester_area \
-	detector_tester_area_graph
+	detector_tester_area_graph \
+	detector_tester_peak \
+	detector_tester_peak_graph
 
 .PHONY: all
 
@@ -57,3 +59,9 @@ detector_tester_area: detector_tester_area.c detectors/areadetector/areadetector
 
 detector_tester_area_graph: detector_tester_area_graph.c frames.o
 	gcc -Wall -o detector_tester_area_graph detector_tester_area_graph.c frames.o
+
+detector_tester_peak: detector_tester_peak.c detectors/areadetector/peakdetector.h detectors/areadetector/peakdetector.o frames.o
+	gcc -Wall -o detector_tester_peak detector_tester_peak.c detectors/areadetector/peakdetector.o frames.o
+
+detector_tester_peak_graph: detector_tester_peak_graph.c detectors/areadetector/peakdetector.h detectors/areadetector/peakdetector.o frames.o
+	gcc -Wall -o detector_tester_peak_graph detector_tester_peak_graph.c detectors/areadetector/peakdetector.o frames.o
