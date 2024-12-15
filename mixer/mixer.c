@@ -12,7 +12,7 @@ static gboolean slider_right_user_input(GtkRange *slider, GtkScrollType *scroll,
 
   fprintf(stderr, "new value right: %f \n", value);
 
-  l_audio_set_volume(l_mixer->l_audio, value, 2);
+  l_audio_set_volume(l_mixer->l_audio, value, 0);
   return FALSE;
   return FALSE;
 }

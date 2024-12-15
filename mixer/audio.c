@@ -15,10 +15,11 @@ void print_audio_data(float* data, size_t len) {
   fflush(stdout);
 }
 
-static void stream_read_callback(pa_stream* s, size_t l, void*) {
+static void stream_read_callback(pa_stream* s, size_t, void*) {
   pa_context* context = pa_stream_get_context(s);
   const void* p;
 
+  size_t l;
   if (pa_stream_peek(s, &p, &l) < 0) {
     fprintf(stderr, "stream peek error: %s\n",
             pa_strerror(pa_context_errno(context)));
@@ -34,11 +35,12 @@ static void stream_read_callback(pa_stream* s, size_t l, void*) {
 
 static void stream_state_callback(pa_stream* s, void*) {}
 
-void l_audio_set_volume(LAudio *l_audio, double volume, int channel) {
+void l_audio_set_volume(LAudio* l_audio, double volume, int channel) {
   pa_cvolume c_volume;
   pa_cvolume_init(&c_volume);
-  pa_cvolume_set(&c_volume, channel, pa_sw_volume_from_linear(volume/100.0));
-  pa_context_set_source_volume_by_index(l_audio->ctx, l_audio->source_index, &c_volume, NULL, NULL);
+  pa_cvolume_set(&c_volume, channel, pa_sw_volume_from_linear(volume / 100.0));
+  pa_context_set_source_volume_by_index(l_audio->ctx, l_audio->source_index,
+                                        &c_volume, NULL, NULL);
   fprintf(stderr, "kakukk\n");
 }
 
@@ -50,7 +52,8 @@ static void source_info_callback(pa_context* context, pa_source_info* info,
   }
   fprintf(stderr, "source: %d; %s; %s; %s\n", info->index, info->name,
           info->description, info->driver);
-//  fprintf(stderr, "  properties: %s\n", pa_proplist_to_string(info->proplist));
+  //  fprintf(stderr, "  properties: %s\n",
+  //  pa_proplist_to_string(info->proplist));
   for (int i = 0; i < info->volume.channels; ++i) {
     fprintf(stderr, "  volume %d: %d\n", i, info->volume.values[i]);
   }
@@ -91,6 +94,7 @@ static void context_get_source_info_callback(pa_context* context,
 
 static void context_get_server_info_callback(pa_context* c,
                                              const pa_server_info* si, void*) {
+  fprintf(stderr, "xzy\n");
   if (!si) {
     fprintf(stderr, "Failed to get server information\n");
     return;
@@ -99,17 +103,21 @@ static void context_get_server_info_callback(pa_context* c,
     fprintf(stderr, "No default source set.\n");
     return;
   }
+
   pa_operation_unref(pa_context_get_source_info_by_name(
       c, si->default_source_name, context_get_source_info_callback, NULL));
 }
 
 static void context_state_callback(pa_context* c, void* user_data) {
   LAudio* l_audio = (LAudio*)user_data;
+  fprintf(stderr, "%d\n", pa_context_get_state(c));
   if (pa_context_get_state(c) == PA_CONTEXT_READY) {
     pa_operation_unref(
         pa_context_get_server_info(c, context_get_server_info_callback, NULL));
     pa_context_get_source_info_list(
         c, (pa_source_info_cb_t)source_info_callback, l_audio);
+  } else {
+    fprintf(stderr, "pa not ready\n");
   }
 }
 
@@ -124,7 +132,12 @@ void l_audio_init(LAudio* l_audio) {
                              PA_CONTEXT_NOAUTOSPAWN | PA_CONTEXT_NOFAIL, NULL);
   g_assert(r == 0);
 
+  fprintf(stderr, "context state: %d\n", pa_context_get_state(l_audio->ctx));
+  fprintf(stderr, "context connect: %d\n", r);
+
   pa_context_set_state_callback(l_audio->ctx, context_state_callback, l_audio);
+
+  fprintf(stderr, "context state: %d\n", pa_context_get_state(l_audio->ctx));
 }
 
 void l_audio_destruct(LAudio* l_audio) {
