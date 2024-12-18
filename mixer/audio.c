@@ -17,14 +17,23 @@ void print_audio_data(float* data, size_t len) {
 
 static void stream_read_callback(pa_stream* s, size_t, void*) {
   pa_context* context = pa_stream_get_context(s);
-  const void* p;
-
-  size_t l;
-  if (pa_stream_peek(s, &p, &l) < 0) {
+  
+  const void* data;
+  size_t nbytes;
+  if (pa_stream_peek(s, &data, &nbytes) < 0) {
     fprintf(stderr, "stream peek error: %s\n",
             pa_strerror(pa_context_errno(context)));
     return;
   }
+
+  if (data == NULL && nbytes == 0) {
+    return;
+  }
+  if (data == NULL) {
+    pa_stream_drop(s);
+    return;    
+  }
+  
 
   // fprintf(stderr, "frame size: %lu\n", l);
 

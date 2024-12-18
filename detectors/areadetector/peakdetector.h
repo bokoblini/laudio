@@ -9,6 +9,6 @@ typedef struct {
   int frame_num;
 } PeakDetectorInput;
 
-void detect_peak(PeakDetectorInput *input, int *output);
+int peakdetector_detect(PeakDetectorInput *input);
 
 #endif // LAUDIO_PEAKDETECTOR.H

@@ -1,6 +1,9 @@
 #include "processor.h"
 
+#include <string.h>
+
 #include "../frames.h"
+#include "../detectors/areadetector/peakdetector.h"
 
 void l_audio_processor_setup(LAudioProcessor* processor) {
   processor->buf_reserved = PROCESSOR_BUF_SIZE;
@@ -11,6 +14,30 @@ void l_audio_processor_setup(LAudioProcessor* processor) {
   processor->frames.frame_len = PROCESSOR_WINDOW_SIZE;
 
   frames_add(&processor->frames);
+}
+
+int l_audio_processor_copy(LAudioProcessor* processor, float* destination) {
+  if (processor->len < PROCESSOR_WINDOW_SIZE) {
+    return 0;
+  }
+
+  int n = processor->begin + processor->len;
+
+  if (n < processor->buf_reserved) {
+    memcpy(destination, processor->buf + n - PROCESSOR_WINDOW_SIZE, PROCESSOR_WINDOW_SIZE * sizeof(float));
+    return 1;
+  }
+
+  n = n % processor->buf_reserved;
+  if (n >= PROCESSOR_WINDOW_SIZE) {
+    memcpy(destination, processor->buf + n - PROCESSOR_WINDOW_SIZE, PROCESSOR_WINDOW_SIZE * sizeof(float));
+    return 1;
+  }
+
+  int lb = PROCESSOR_WINDOW_SIZE - n;
+  memcpy(destination, processor->buf + processor->buf_reserved - lb, lb * sizeof(float));
+  memcpy(destination + lb, processor->buf, n * sizeof(float));
+  return 1;
 }
 
 void l_audio_processor_feed(LAudioProcessor* processor, float* data,
@@ -34,17 +61,18 @@ void l_audio_processor_feed(LAudioProcessor* processor, float* data,
 }
 
 void l_audio_processor_detect(LAudioProcessor* processor) {
-  if (processor->len < PROCESSOR_WINDOW_SIZE) {
+  if (!l_audio_processor_copy(processor, processor->frames.data[0])) {
     return;
   }
 
-  int n = processor->begin + processor->len - PROCESSOR_WINDOW_SIZE;
-  n = n % processor->buf_reserved;
+  PeakDetectorInput pdi;
+  pdi.frames = &processor->frames;
+  pdi.height = 6.2;
+  pdi.frame_num = 0;
 
-  // TODO: solve with memcpy
-  for (int i = 0; i < PROCESSOR_WINDOW_SIZE; ++i) {
-    processor->frames.data[0][i] = processor->buf[n];
-    ++n;
-    n = n % processor->buf_reserved;
+  int has_peak = peakdetector_detect(&pdi);
+
+  if (has_peak) {
+    fprintf(stderr, "!!!PEAK!!!\n");
   }
 }
