@@ -3,9 +3,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pffft.h>
+#include <math.h>
 
 #include "../detectors/areadetector/peakdetector.h"
 #include "../frames.h"
+#include "../windowfunction.h"
 
 void l_audio_processor_setup(LAudioProcessor* processor, int channel_num) {
   processor->buf = (float*)malloc(PROCESSOR_BUF_SIZE * sizeof(float));
@@ -18,13 +21,45 @@ void l_audio_processor_setup(LAudioProcessor* processor, int channel_num) {
   processor->len = 0;
 
   frames_setup(&processor->frames);
-  processor->frames.frame_len = PROCESSOR_WINDOW_SIZE;
+  processor->frames.frame_len = PROCESSOR_WINDOW_SIZE / 2;
 
   frames_add(&processor->frames);
 
   processor->samples_since_detect = 0;
 
   processor->channel_num = channel_num;
+
+  processor->pffft_setup = pffft_new_setup(PROCESSOR_WINDOW_SIZE, PFFFT_REAL);
+
+  window_function_setup(&processor->wf, PROCESSOR_WINDOW_SIZE);
+
+  processor->pffft_input_buf =
+      (float*)pffft_aligned_malloc(sizeof(float) * PROCESSOR_WINDOW_SIZE);
+  if (!processor->pffft_input_buf) {
+    fprintf(stderr, "pffft_aligned_malloc failed to allocate memory\n");
+    exit(1);
+  }
+
+  processor->pffft_output_buf =
+      (float*)pffft_aligned_malloc(sizeof(float) * PROCESSOR_WINDOW_SIZE);
+  if (!processor->pffft_output_buf) {
+    fprintf(stderr, "pffft_aligned_malloc failed to allocate memory\n");
+    exit(1);
+  }
+
+  processor->pffft_work_buf =
+      (float*)pffft_aligned_malloc(sizeof(float) * PROCESSOR_WINDOW_SIZE * 2);
+  if (!processor->pffft_work_buf) {
+    fprintf(stderr, "pffft_aligned_malloc failed to allocate memory\n");
+    exit(1);
+  }
+
+  processor->abs_buf_w =
+      (float*)malloc(PROCESSOR_WINDOW_SIZE / 2 * sizeof(float));
+  if (!processor->abs_buf_w) {
+    fprintf(stderr, "malloc failed to allocate memory\n");
+    exit(1);
+  }
 }
 
 int l_audio_processor_copy(LAudioProcessor* processor, float* destination) {
@@ -81,13 +116,24 @@ void l_audio_processor_feed(LAudioProcessor* processor, const float* data,
 }
 
 void l_audio_processor_detect(LAudioProcessor* processor) {
-  if (!l_audio_processor_copy(processor, processor->frames.data[0])) {
+  if (!l_audio_processor_copy(processor, processor->pffft_input_buf)) {
     return;
+  }
+
+  window_function_apply_hann(&processor->wf, processor->pffft_input_buf,
+                             PROCESSOR_WINDOW_SIZE);
+  pffft_transform_ordered(processor->pffft_setup, processor->pffft_input_buf,
+                          processor->pffft_output_buf,
+                          processor->pffft_work_buf, PFFFT_FORWARD);
+  for (int i = 0; i < PROCESSOR_WINDOW_SIZE / 2; ++i) {
+    processor->frames.data[0][i] =
+        log(1.0 + sqrt(pow(processor->pffft_output_buf[i * 2], 2.0) +
+                       pow(processor->pffft_output_buf[i * 2 + 1], 2.0)));
   }
 
   PeakDetectorInput pdi;
   pdi.frames = &processor->frames;
-  pdi.height = 3;
+  pdi.height = 6;
   pdi.frame_num = 0;
 
   int has_peak = peakdetector_detect(&pdi);

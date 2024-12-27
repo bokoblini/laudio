@@ -5,9 +5,11 @@
 #define PROCESSOR_WINDOW_SIZE 2048
 #define PROCESSOR_DETECT_THRESHOLD 4410
 
+#include <pffft.h>
 #include <stdint.h>
 
 #include "../frames.h"
+#include "../windowfunction.h"
 
 typedef struct {
   float* buf;  // [PROCESSOR_BUF_SIZE * sizeof(float)];
@@ -20,6 +22,14 @@ typedef struct {
 
   uint64_t samples_since_detect;
   int channel_num;
+
+  PFFFT_Setup* pffft_setup;
+  float* pffft_input_buf;
+  float* pffft_output_buf;
+  float* pffft_work_buf;
+  float* abs_buf_w;
+
+  WindowFunction wf;
 } LAudioProcessor;
 
 void l_audio_processor_setup(LAudioProcessor* processor, int channel_num);

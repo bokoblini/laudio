@@ -20,6 +20,6 @@ int peakdetector_detect(PeakDetectorInput *input) {
       return 1;
     }
   }
-  fprintf(stderr, "max = %f\n", m);
+  // fprintf(stderr, "max = %f\n", m);
   return 0;
 }
