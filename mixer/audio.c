@@ -41,7 +41,7 @@ static void stream_read_callback(pa_stream* s, size_t, void* user_data) {
   l_multi_processor_feed(l_audio->l_processor, data,
                          nbytes / (sizeof(float) * 2));
 
-  // fprintf(stderr, "frame size: %lu\n", l);
+  // fprintf(stderr, "frame size: %lu\n", nbytes);
 
   // print_audio_data((float*)p, l / sizeof(float));
 
@@ -51,11 +51,10 @@ static void stream_read_callback(pa_stream* s, size_t, void* user_data) {
 static void stream_state_callback(pa_stream* s, void*) {}
 
 void l_audio_set_volume(LAudio* l_audio, double volume, int channel) {
-  pa_cvolume c_volume;
-  pa_cvolume_init(&c_volume);
-  pa_cvolume_set(&c_volume, channel, pa_sw_volume_from_linear(volume / 100.0));
+  
+  l_audio->cvolume.values[channel] = pa_sw_volume_from_linear(volume / 100.0);
   pa_context_set_source_volume_by_index(l_audio->ctx, l_audio->source_index,
-                                        &c_volume, NULL, NULL);
+                                        &l_audio->cvolume, NULL, NULL);
   fprintf(stderr, "kakukk\n");
 }
 
@@ -85,6 +84,7 @@ static void create_stream(pa_context* context, const char* name,
   nss.rate = ss->rate;
   nss.channels = ss->channels;
   fprintf(stderr, "Sample rate: %d\nChannels: %d\n", nss.rate, nss.channels);
+  fprintf(stderr, "Name: %s\nDescription: %s\n", name, description);
 
   // struct pa_channel_map mcmap;
   // pa_channel_map_init_stereo(&mcmap);
@@ -158,6 +158,12 @@ void l_audio_init(LAudio* l_audio, LMultiProcessor* l_processor) {
   pa_context_set_state_callback(l_audio->ctx, context_state_callback, l_audio);
 
   fprintf(stderr, "context state: %d\n", pa_context_get_state(l_audio->ctx));
+
+  pa_cvolume_init(&l_audio->cvolume);
+  l_audio->cvolume.channels = 2;
+  for (int i = 0; i < l_audio->cvolume.channels; ++i) {
+    l_audio->cvolume.values[i] = pa_sw_volume_from_linear(0.0);
+  }
 }
 
 void l_audio_destruct(LAudio* l_audio) {

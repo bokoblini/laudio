@@ -7,7 +7,7 @@
 #include "../detectors/areadetector/peakdetector.h"
 #include "../frames.h"
 
-void l_audio_processor_setup(LAudioProcessor* processor) {
+void l_audio_processor_setup(LAudioProcessor* processor, int channel_num) {
   processor->buf = (float*)malloc(PROCESSOR_BUF_SIZE * sizeof(float));
   if (!processor->buf) {
     fprintf(stderr, "malloc failed for LAudioProcessor.buf\n");
@@ -23,6 +23,8 @@ void l_audio_processor_setup(LAudioProcessor* processor) {
   frames_add(&processor->frames);
 
   processor->samples_since_detect = 0;
+
+  processor->channel_num = channel_num;
 }
 
 int l_audio_processor_copy(LAudioProcessor* processor, float* destination) {
@@ -55,21 +57,21 @@ int l_audio_processor_copy(LAudioProcessor* processor, float* destination) {
 void l_audio_processor_feed(LAudioProcessor* processor, const float* data,
                             int nsamples, int stride) {
   processor->samples_since_detect += nsamples;
-  processor->len += nsamples;
-  processor->len = processor->len % processor->buf_reserved;
 
-  int buf_place = processor->begin;
+  int buf_place = (processor->begin + processor->len) % processor->buf_reserved;
   for (int i = 0; i < nsamples; ++i) {
+    processor->buf[buf_place] = data[i * stride];
     ++buf_place;
     if (buf_place >= processor->buf_reserved) {
       buf_place -= processor->buf_reserved;
     }
-    processor->buf[buf_place] = data[i * stride];
   }
 
-  processor->begin = buf_place + 1;
-  if (buf_place >= processor->buf_reserved) {
-    buf_place -= processor->buf_reserved;
+  if (processor->len + nsamples >= processor->buf_reserved) {
+    processor->begin = buf_place;
+    processor->len = processor->buf_reserved;
+  } else {
+    processor->len = processor->len + nsamples;
   }
 
   if (processor->samples_since_detect > PROCESSOR_DETECT_THRESHOLD) {
@@ -85,13 +87,14 @@ void l_audio_processor_detect(LAudioProcessor* processor) {
 
   PeakDetectorInput pdi;
   pdi.frames = &processor->frames;
-  pdi.height = 6.2;
+  pdi.height = 3;
   pdi.frame_num = 0;
 
   int has_peak = peakdetector_detect(&pdi);
 
   if (has_peak) {
-    fprintf(stderr, "!!!PEAK!!!\n");
+    static int n = 0;
+    fprintf(stderr, "!!!PEAK!!! %d %d\n", processor->channel_num, n++);
   }
 }
 
@@ -105,7 +108,7 @@ void l_multi_processor_setup(LMultiProcessor* processor, int num_channels) {
   processor->num_ps = num_channels;
 
   for (int i = 0; i < num_channels; ++i) {
-    l_audio_processor_setup(processor->ps + i);
+    l_audio_processor_setup(processor->ps + i, i);
   }
 }
 void l_multi_processor_feed(LMultiProcessor* processor, const float* data,

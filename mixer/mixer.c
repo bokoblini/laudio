@@ -68,6 +68,7 @@ int main(int argc, char **argv) {
   l_mixer.l_audio = &l_audio;
   LMultiProcessor l_processor;
   l_mixer.l_processor = &l_processor;
+  l_audio.l_processor = &l_processor;
 
   GtkApplication *app = gtk_application_new(NULL, G_APPLICATION_DEFAULT_FLAGS);
   g_signal_connect(app, "activate", G_CALLBACK(activate), &l_mixer);

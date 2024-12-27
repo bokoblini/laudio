@@ -19,9 +19,10 @@ typedef struct {
   Frames frames;
 
   uint64_t samples_since_detect;
+  int channel_num;
 } LAudioProcessor;
 
-void l_audio_processor_setup(LAudioProcessor* processor);
+void l_audio_processor_setup(LAudioProcessor* processor, int channel_num);
 
 void l_audio_processor_feed(LAudioProcessor* processor, const float* data,
                             int nsamples, int stride);

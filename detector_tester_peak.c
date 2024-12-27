@@ -32,11 +32,9 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "sscanf failed\n");
   }
 
-  int* detector_out = (int*)malloc(frames.frame_len * sizeof(int));
-  detect_peak(&input, detector_out);
+  
+  int rc = peakdetector_detect(&input);
 
-  for (int i = 0; i < frames.frame_len; ++i) {
-    printf("%d", detector_out[i]);
-  }
-  printf("\n");
+  printf("%d\n", rc);
+
 }

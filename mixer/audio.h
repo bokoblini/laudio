@@ -14,6 +14,7 @@ typedef struct {
   pa_glib_mainloop *mainloop;
   uint32_t source_index;
   LMultiProcessor* l_processor;
+  pa_cvolume cvolume;
 } LAudio;
 
 void l_audio_init(LAudio* l_audio, LMultiProcessor* l_processor);
