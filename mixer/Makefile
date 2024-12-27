@@ -3,7 +3,7 @@ all: \
 
 .PHONY: all
 
-audio.o: audio.c audio.h
+audio.o: audio.c audio.h processor.h
 	gcc -g -Wall $(shell pkg-config --cflags libpulse libpulse-mainloop-glib) -c audio.c
 
 

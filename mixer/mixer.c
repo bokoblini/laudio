@@ -1,10 +1,13 @@
 #include <gtk/gtk.h>
 #include <stdio.h>
 
+
 #include "audio.h"
+#include "processor.h"
 
 typedef struct {
   LAudio *l_audio;
+  LMultiProcessor *l_processor;
 } LMixer;
 
 static gboolean slider_right_user_input(GtkRange *slider, GtkScrollType *scroll, gdouble value, gpointer user_data) {
@@ -29,7 +32,8 @@ static gboolean slider_left_user_input(GtkRange *slider, GtkScrollType *scroll, 
 static void activate(GtkApplication *app, gpointer user_data) {
   LMixer *l_mixer = (LMixer *)user_data;
 
-  l_audio_init(l_mixer->l_audio);
+  l_multi_processor_setup(l_mixer->l_processor, 2);
+  l_audio_init(l_mixer->l_audio, l_mixer->l_processor);
 
   GtkWidget *slider_left =
       gtk_scale_new_with_range(GTK_ORIENTATION_VERTICAL, 0.0, 100.0, 1.0);
@@ -62,6 +66,8 @@ int main(int argc, char **argv) {
   LAudio l_audio;
   LMixer l_mixer;
   l_mixer.l_audio = &l_audio;
+  LMultiProcessor l_processor;
+  l_mixer.l_processor = &l_processor;
 
   GtkApplication *app = gtk_application_new(NULL, G_APPLICATION_DEFAULT_FLAGS);
   g_signal_connect(app, "activate", G_CALLBACK(activate), &l_mixer);

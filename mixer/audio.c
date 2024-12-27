@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "processor.h"
+
 const char* serviceid = "Laudio streamdumper";
 
 void print_audio_data(float* data, size_t len) {
@@ -15,9 +17,11 @@ void print_audio_data(float* data, size_t len) {
   fflush(stdout);
 }
 
-static void stream_read_callback(pa_stream* s, size_t, void*) {
+static void stream_read_callback(pa_stream* s, size_t, void* user_data) {
+  LAudio* l_audio = (LAudio*)user_data;
+
   pa_context* context = pa_stream_get_context(s);
-  
+
   const void* data;
   size_t nbytes;
   if (pa_stream_peek(s, &data, &nbytes) < 0) {
@@ -31,9 +35,11 @@ static void stream_read_callback(pa_stream* s, size_t, void*) {
   }
   if (data == NULL) {
     pa_stream_drop(s);
-    return;    
+    return;
   }
-  
+
+  l_multi_processor_feed(l_audio->l_processor, data,
+                         nbytes / (sizeof(float) * 2));
 
   // fprintf(stderr, "frame size: %lu\n", l);
 
@@ -73,7 +79,7 @@ static void source_info_callback(pa_context* context, pa_source_info* info,
 
 static void create_stream(pa_context* context, const char* name,
                           const char* description, const pa_sample_spec* ss,
-                          const pa_channel_map* cmap) {
+                          const pa_channel_map* cmap, LAudio* l_audio) {
   pa_sample_spec nss;
   nss.format = PA_SAMPLE_FLOAT32;
   nss.rate = ss->rate;
@@ -88,21 +94,26 @@ static void create_stream(pa_context* context, const char* name,
 
   pa_stream* stream = pa_stream_new(context, serviceid, &nss, cmap);
   pa_stream_set_state_callback(stream, stream_state_callback, NULL);
-  pa_stream_set_read_callback(stream, stream_read_callback, NULL);
+  pa_stream_set_read_callback(stream, stream_read_callback, l_audio);
   pa_stream_connect_record(stream, name, NULL, (enum pa_stream_flags)0);
 }
 
 static void context_get_source_info_callback(pa_context* context,
                                              const pa_source_info* si,
-                                             int is_last, void*) {
+                                             int is_last, void* user_data) {
+  LAudio* l_audio = (LAudio*)user_data;
+
   if (!si) return;
 
   create_stream(context, si->name, si->description, &si->sample_spec,
-                &si->channel_map);
+                &si->channel_map, l_audio);
 }
 
 static void context_get_server_info_callback(pa_context* c,
-                                             const pa_server_info* si, void*) {
+                                             const pa_server_info* si,
+                                             void* user_data) {
+  LAudio* l_audio = (LAudio*)user_data;
+
   fprintf(stderr, "xzy\n");
   if (!si) {
     fprintf(stderr, "Failed to get server information\n");
@@ -114,15 +125,15 @@ static void context_get_server_info_callback(pa_context* c,
   }
 
   pa_operation_unref(pa_context_get_source_info_by_name(
-      c, si->default_source_name, context_get_source_info_callback, NULL));
+      c, si->default_source_name, context_get_source_info_callback, l_audio));
 }
 
 static void context_state_callback(pa_context* c, void* user_data) {
   LAudio* l_audio = (LAudio*)user_data;
   fprintf(stderr, "%d\n", pa_context_get_state(c));
   if (pa_context_get_state(c) == PA_CONTEXT_READY) {
-    pa_operation_unref(
-        pa_context_get_server_info(c, context_get_server_info_callback, NULL));
+    pa_operation_unref(pa_context_get_server_info(
+        c, context_get_server_info_callback, l_audio));
     pa_context_get_source_info_list(
         c, (pa_source_info_cb_t)source_info_callback, l_audio);
   } else {
@@ -130,7 +141,7 @@ static void context_state_callback(pa_context* c, void* user_data) {
   }
 }
 
-void l_audio_init(LAudio* l_audio) {
+void l_audio_init(LAudio* l_audio, LMultiProcessor* l_processor) {
   l_audio->mainloop = pa_glib_mainloop_new(NULL);
 
   l_audio->ctx =
