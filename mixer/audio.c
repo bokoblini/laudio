@@ -4,6 +4,7 @@
 #include <pulse/pulseaudio.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
 
 #include "processor.h"
 
@@ -51,8 +52,7 @@ static void stream_read_callback(pa_stream* s, size_t, void* user_data) {
 static void stream_state_callback(pa_stream* s, void*) {}
 
 void l_audio_set_volume(LAudio* l_audio, double volume, int channel) {
-  
-  l_audio->cvolume.values[channel] = pa_sw_volume_from_linear(volume / 100.0);
+    l_audio->cvolume.values[channel] = pa_sw_volume_from_linear(volume / 100.0);
   pa_context_set_source_volume_by_index(l_audio->ctx, l_audio->source_index,
                                         &l_audio->cvolume, NULL, NULL);
   fprintf(stderr, "kakukk\n");
@@ -95,7 +95,12 @@ static void create_stream(pa_context* context, const char* name,
   pa_stream* stream = pa_stream_new(context, serviceid, &nss, cmap);
   pa_stream_set_state_callback(stream, stream_state_callback, NULL);
   pa_stream_set_read_callback(stream, stream_read_callback, l_audio);
-  pa_stream_connect_record(stream, name, NULL, (enum pa_stream_flags)0);
+
+  pa_buffer_attr pba;
+  memset(&pba, 0, sizeof(pa_buffer_attr));
+  pba.maxlength = (uint32_t)(-1); 
+  pba.fragsize = PROCESSOR_WINDOW_SIZE * sizeof(float) * 2;
+  pa_stream_connect_record(stream, name, &pba, PA_STREAM_ADJUST_LATENCY);
 }
 
 static void context_get_source_info_callback(pa_context* context,
