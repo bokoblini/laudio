@@ -1,17 +1,20 @@
 #include <gtk/gtk.h>
 #include <stdio.h>
 
-
 #include "audio.h"
+#include "led.h"
 #include "processor.h"
+#include "slider.h"
 
 typedef struct {
   LAudio *l_audio;
   LMultiProcessor *l_processor;
+  LAudioSlider slider[2];
 } LMixer;
 
-static gboolean slider_right_user_input(GtkRange *slider, GtkScrollType *scroll, gdouble value, gpointer user_data) {
-  LMixer *l_mixer = (LMixer*)user_data;
+static gboolean slider_right_user_input(GtkRange *slider, GtkScrollType *scroll,
+                                        gdouble value, gpointer user_data) {
+  LMixer *l_mixer = (LMixer *)user_data;
 
   fprintf(stderr, "new value right: %f \n", value);
 
@@ -20,13 +23,20 @@ static gboolean slider_right_user_input(GtkRange *slider, GtkScrollType *scroll,
   return FALSE;
 }
 
-static gboolean slider_left_user_input(GtkRange *slider, GtkScrollType *scroll, gdouble value, gpointer user_data) {
-  LMixer *l_mixer = (LMixer*)user_data;
+static gboolean slider_left_user_input(GtkRange *slider, GtkScrollType *scroll,
+                                       gdouble value, gpointer user_data) {
+  LMixer *l_mixer = (LMixer *)user_data;
 
   fprintf(stderr, "new value left: %f \n", value);
 
   l_audio_set_volume(l_mixer->l_audio, value, 1);
   return FALSE;
+}
+
+static gboolean proba_piros(gpointer user_data) {
+  LAudioLed* led = (LAudioLed*)user_data;
+  l_audio_led_alert(led);
+  return G_SOURCE_REMOVE;
 }
 
 static void activate(GtkApplication *app, gpointer user_data) {
@@ -35,21 +45,17 @@ static void activate(GtkApplication *app, gpointer user_data) {
   l_multi_processor_setup(l_mixer->l_processor, 2);
   l_audio_init(l_mixer->l_audio, l_mixer->l_processor);
 
-  GtkWidget *slider_left =
-      gtk_scale_new_with_range(GTK_ORIENTATION_VERTICAL, 0.0, 100.0, 1.0);
-  gtk_range_set_value(GTK_RANGE(slider_left), 0.0);
-  gtk_range_set_inverted(GTK_RANGE(slider_left), TRUE);
-  g_signal_connect(slider_left, "change-value", G_CALLBACK(slider_left_user_input), user_data);
+  l_audio_slider_setup(&l_mixer->slider[0]);
+  l_audio_slider_setup(&l_mixer->slider[1]);
 
-  GtkWidget *slider_right =
-      gtk_scale_new_with_range(GTK_ORIENTATION_VERTICAL, 0.0, 100.0, 1.0);
-  gtk_range_set_value(GTK_RANGE(slider_right), 0.0);
-  gtk_range_set_inverted(GTK_RANGE(slider_right), TRUE);
-  g_signal_connect(slider_right, "change-value", G_CALLBACK(slider_right_user_input), user_data);
+  g_signal_connect(l_mixer->slider[0].scale, "change-value",
+                   G_CALLBACK(slider_left_user_input), user_data);
+  g_signal_connect(l_mixer->slider[1].scale, "change-value",
+                   G_CALLBACK(slider_right_user_input), user_data);
 
   GtkWidget *control_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 32);
-  gtk_box_append(GTK_BOX(control_box), slider_left);
-  gtk_box_append(GTK_BOX(control_box), slider_right);
+  gtk_box_append(GTK_BOX(control_box), l_mixer->slider[0].box);
+  gtk_box_append(GTK_BOX(control_box), l_mixer->slider[1].box);
 
   GtkWidget *center_box = gtk_center_box_new();
   gtk_center_box_set_center_widget(GTK_CENTER_BOX(center_box), control_box);
@@ -60,6 +66,8 @@ static void activate(GtkApplication *app, gpointer user_data) {
 
   gtk_window_set_child(GTK_WINDOW(window), center_box);
   gtk_window_present(GTK_WINDOW(window));
+
+  g_timeout_add_seconds(3, proba_piros, &l_mixer->slider[0].led);
 }
 
 int main(int argc, char **argv) {
