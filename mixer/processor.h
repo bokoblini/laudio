@@ -7,11 +7,14 @@
 
 #include <pffft.h>
 #include <stdint.h>
+#include <gtk/gtk.h>
 
 #include "../frames.h"
 #include "../windowfunction.h"
 
-typedef struct {
+typedef gboolean (*FeedbackSignal)(gpointer user_data);
+
+    typedef struct {
   float* buf;  // [PROCESSOR_BUF_SIZE * sizeof(float)];
   int buf_reserved;
 
@@ -30,6 +33,10 @@ typedef struct {
   float* abs_buf_w;
 
   WindowFunction wf;
+
+  FeedbackSignal feedback_signal;
+  gpointer feedback_signal_data;
+
 } LAudioProcessor;
 
 void l_audio_processor_setup(LAudioProcessor* processor, int channel_num);

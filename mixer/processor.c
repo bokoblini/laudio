@@ -141,6 +141,7 @@ void l_audio_processor_detect(LAudioProcessor* processor) {
   if (has_peak) {
     static int n = 0;
     fprintf(stderr, "!!!PEAK!!! %d %d\n", processor->channel_num, n++);
+    processor->feedback_signal(processor->feedback_signal_data);
   }
 }
 

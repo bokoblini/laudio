@@ -6,11 +6,11 @@ all: \
 PFFFT_DIR := /home/lori/pffft
 
 audio.o: audio.c audio.h processor.h
-	gcc -g -Wall $(shell pkg-config --cflags libpulse libpulse-mainloop-glib) -I$(PFFFT_DIR) -c audio.c
+	gcc -g -Wall $(shell pkg-config --cflags gtk4 libpulse libpulse-mainloop-glib) -I$(PFFFT_DIR) -c audio.c
 
 
 processor.o: processor.c processor.h ../detectors/areadetector/peakdetector.h ../frames.h ../windowfunction.h
-	gcc -g -Wall $(shell pkg-config --cflags libpulse libpulse-mainloop-glib) -I$(PFFFT_DIR) -c processor.c
+	gcc -g -Wall $(shell pkg-config --cflags gtk4 libpulse libpulse-mainloop-glib) -I$(PFFFT_DIR) -c processor.c
 	
 led.o: led.c led.h
 	gcc -g -Wall $(shell pkg-config --cflags gtk4) -c led.c

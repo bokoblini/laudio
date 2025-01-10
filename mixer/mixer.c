@@ -68,6 +68,12 @@ static void activate(GtkApplication *app, gpointer user_data) {
   gtk_window_present(GTK_WINDOW(window));
 
   g_timeout_add_seconds(3, proba_piros, &l_mixer->slider[0].led);
+
+  l_mixer->l_processor->ps[0].feedback_signal = proba_piros;
+  l_mixer->l_processor->ps[1].feedback_signal = proba_piros;
+
+  l_mixer->l_processor->ps[0].feedback_signal_data = &(l_mixer->slider[0].led);
+  l_mixer->l_processor->ps[1].feedback_signal_data = &(l_mixer->slider[1].led);
 }
 
 int main(int argc, char **argv) {
