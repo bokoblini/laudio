@@ -6,6 +6,7 @@
 typedef struct {
   GtkWidget* drawing_area;
   int state;  // 1: alerting, 0: not
+  guint timeout;
 } LAudioLed;
 
 void l_audio_led_setup(LAudioLed *led);

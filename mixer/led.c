@@ -35,9 +35,24 @@ void l_audio_led_setup(LAudioLed *led) {
                                       AREA_SIZE);
   gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(led->drawing_area),
                                  draw_function, led, NULL);
+  led->timeout = 0;
+}
+
+gboolean l_audio_led_reset(gpointer user_data) {
+  LAudioLed *led = (LAudioLed *)user_data;
+  led->state = 0;
+  gtk_widget_queue_draw(led->drawing_area);
+  led->timeout = 0;
+  return G_SOURCE_REMOVE;
 }
 
 void l_audio_led_alert(LAudioLed *led) {
   led->state = 1;
   gtk_widget_queue_draw(led->drawing_area);
+
+  if (led->timeout != 0) {
+    g_source_remove(led->timeout);
+  }
+
+  led->timeout = g_timeout_add(333, l_audio_led_reset, led);
 }
