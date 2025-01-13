@@ -1,0 +1,28 @@
+cset numid=6,iface=MIXER,name='DSP Program' 1
+cset numid=27,iface=MIXER,name='ADC Left Capture Source' 1
+cset numid=22,iface=MIXER,name='ADC Left Input' 1
+cset numid=24,iface=MIXER,name='ADC Mic Bias' 0
+cset numid=28,iface=MIXER,name='ADC Right Capture Source' 1
+cset numid=23,iface=MIXER,name='ADC Right Input' 1
+cset numid=21,iface=MIXER,name='ADC Capture Volume' 64,64
+cset numid=3,iface=MIXER,name='Analogue Playback Boost Volume' 0,0
+cset numid=2,iface=MIXER,name='Analogue Playback Volume' 1,1
+cset numid=10,iface=MIXER,name='Auto Mute Mono Switch' off
+cset numid=11,iface=MIXER,name='Auto Mute Switch' off,off
+cset numid=8,iface=MIXER,name='Auto Mute Time Left' 0
+cset numid=9,iface=MIXER,name='Auto Mute Time Right' 0
+cset numid=7,iface=MIXER,name='Clock Missing Period' 0
+cset numid=5,iface=MIXER,name='Deemphasis Switch' off
+cset numid=4,iface=MIXER,name='Digital Playback Switch' on,on
+cset numid=1,iface=MIXER,name='Digital Playback Volume' 197,197
+cset numid=20,iface=MIXER,name='Max Overclock DAC' 0
+cset numid=19,iface=MIXER,name='Max Overclock DSP' 0
+cset numid=18,iface=MIXER,name='Max Overclock PLL' 0
+cset numid=25,iface=MIXER,name='PGA Gain Left' 64
+cset numid=26,iface=MIXER,name='PGA Gain Right' 64
+cset numid=16,iface=MIXER,name='Volume Ramp Down Emergency Rate' 3
+cset numid=17,iface=MIXER,name='Volume Ramp Down Emergency Step' 0
+cset numid=12,iface=MIXER,name='Volume Ramp Down Rate' 3
+cset numid=13,iface=MIXER,name='Volume Ramp Down Step' 0
+cset numid=14,iface=MIXER,name='Volume Ramp Up Rate' 3
+cset numid=15,iface=MIXER,name='Volume Ramp Up Step' 0

@@ -1,0 +1,14 @@
+[Unit]
+Description=laudio mixer
+After=systemd-user-sessions.service dev-dri-card0.device dev-dri-renderD128.device
+Wants=dev-dri-card0.device dev-dri-renderD128.device
+StartLimitIntervalSec=0
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+User=lori
+ExecStart=/usr/bin/startx
+
+[Install]
+WantedBy=multi-user.target
