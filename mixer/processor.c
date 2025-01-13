@@ -133,14 +133,17 @@ void l_audio_processor_detect(LAudioProcessor* processor) {
 
   PeakDetectorInput pdi;
   pdi.frames = &processor->frames;
-  pdi.height = 6;
+  pdi.height = 4;
   pdi.frame_num = 0;
+  pdi.channel = processor->channel_num;
+  pdi.from_coefficient = 3 * 64;
 
   int has_peak = peakdetector_detect(&pdi);
 
+  // fprintf(stderr, "looking for peak: %d\n", has_peak);
   if (has_peak) {
     static int n = 0;
-    fprintf(stderr, "!!!PEAK!!! %d %d\n", processor->channel_num, n++);
+    // fprintf(stderr, "!!!PEAK!!! %d %d\n", processor->channel_num, n++);
     processor->feedback_signal(processor->feedback_signal_data);
   }
 }

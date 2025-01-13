@@ -16,8 +16,6 @@ static gboolean slider_right_user_input(GtkRange *slider, GtkScrollType *scroll,
                                         gdouble value, gpointer user_data) {
   LMixer *l_mixer = (LMixer *)user_data;
 
-  fprintf(stderr, "new value right: %f \n", value);
-
   l_audio_set_volume(l_mixer->l_audio, value, 0);
   return FALSE;
   return FALSE;
@@ -26,8 +24,6 @@ static gboolean slider_right_user_input(GtkRange *slider, GtkScrollType *scroll,
 static gboolean slider_left_user_input(GtkRange *slider, GtkScrollType *scroll,
                                        gdouble value, gpointer user_data) {
   LMixer *l_mixer = (LMixer *)user_data;
-
-  fprintf(stderr, "new value left: %f \n", value);
 
   l_audio_set_volume(l_mixer->l_audio, value, 1);
   return FALSE;
@@ -62,7 +58,7 @@ static void activate(GtkApplication *app, gpointer user_data) {
 
   GtkWidget *window = gtk_application_window_new(app);
   gtk_window_set_title(GTK_WINDOW(window), "LAudio Supermixer Platinum");
-  gtk_window_set_default_size(GTK_WINDOW(window), 480, 720);
+  gtk_window_set_default_size(GTK_WINDOW(window), 600, 1024);
 
   gtk_window_set_child(GTK_WINDOW(window), center_box);
   gtk_window_present(GTK_WINDOW(window));
@@ -72,8 +68,8 @@ static void activate(GtkApplication *app, gpointer user_data) {
   l_mixer->l_processor->ps[0].feedback_signal = proba_piros;
   l_mixer->l_processor->ps[1].feedback_signal = proba_piros;
 
-  l_mixer->l_processor->ps[0].feedback_signal_data = &(l_mixer->slider[0].led);
-  l_mixer->l_processor->ps[1].feedback_signal_data = &(l_mixer->slider[1].led);
+  l_mixer->l_processor->ps[0].feedback_signal_data = &(l_mixer->slider[1].led);
+  l_mixer->l_processor->ps[1].feedback_signal_data = &(l_mixer->slider[0].led);
 }
 
 int main(int argc, char **argv) {
@@ -84,7 +80,7 @@ int main(int argc, char **argv) {
   l_mixer.l_processor = &l_processor;
   l_audio.l_processor = &l_processor;
 
-  GtkApplication *app = gtk_application_new(NULL, G_APPLICATION_DEFAULT_FLAGS);
+  GtkApplication *app = gtk_application_new(NULL, G_APPLICATION_NON_UNIQUE);
   g_signal_connect(app, "activate", G_CALLBACK(activate), &l_mixer);
 
   int status = g_application_run(G_APPLICATION(app), argc, argv);

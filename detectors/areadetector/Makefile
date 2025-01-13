@@ -1,3 +1,7 @@
+all: areadetector.o peakdetector.o
+
+.PHONY: all
+
 areadetector.o: areadetector.h areadetector.c
 	gcc -Wall -c areadetector.c
 

@@ -55,7 +55,6 @@ void l_audio_set_volume(LAudio* l_audio, double volume, int channel) {
     l_audio->cvolume.values[channel] = pa_sw_volume_from_linear(volume / 100.0);
   pa_context_set_source_volume_by_index(l_audio->ctx, l_audio->source_index,
                                         &l_audio->cvolume, NULL, NULL);
-  fprintf(stderr, "kakukk\n");
 }
 
 static void source_info_callback(pa_context* context, pa_source_info* info,
@@ -64,15 +63,17 @@ static void source_info_callback(pa_context* context, pa_source_info* info,
   if (!info) {
     return;
   }
-  fprintf(stderr, "source: %d; %s; %s; %s\n", info->index, info->name,
-          info->description, info->driver);
+  // fprintf(stderr, "source: %d; %s; %s; %s\n", info->index, info->name,
+  //        info->description, info->driver);
   //  fprintf(stderr, "  properties: %s\n",
   //  pa_proplist_to_string(info->proplist));
-  for (int i = 0; i < info->volume.channels; ++i) {
-    fprintf(stderr, "  volume %d: %d\n", i, info->volume.values[i]);
-  }
-  if (strcmp(info->description, "Built-in Audio Analog Stereo") == 0) {
+  //for (int i = 0; i < info->volume.channels; ++i) {
+  //  fprintf(stderr, "  volume %d: %d\n", i, info->volume.values[i]);
+  //}
+  if (strcmp(info->name, "alsa_input.platform-soc_sound.stereo-fallback") == 0) {
     l_audio->source_index = info->index;
+    l_audio_set_volume(l_audio, 25.0, 0);
+    l_audio_set_volume(l_audio, 25.0, 1);
   }
 }
 
@@ -119,7 +120,6 @@ static void context_get_server_info_callback(pa_context* c,
                                              void* user_data) {
   LAudio* l_audio = (LAudio*)user_data;
 
-  fprintf(stderr, "xzy\n");
   if (!si) {
     fprintf(stderr, "Failed to get server information\n");
     return;
@@ -135,14 +135,11 @@ static void context_get_server_info_callback(pa_context* c,
 
 static void context_state_callback(pa_context* c, void* user_data) {
   LAudio* l_audio = (LAudio*)user_data;
-  fprintf(stderr, "%d\n", pa_context_get_state(c));
   if (pa_context_get_state(c) == PA_CONTEXT_READY) {
     pa_operation_unref(pa_context_get_server_info(
         c, context_get_server_info_callback, l_audio));
     pa_context_get_source_info_list(
         c, (pa_source_info_cb_t)source_info_callback, l_audio);
-  } else {
-    fprintf(stderr, "pa not ready\n");
   }
 }
 
@@ -157,12 +154,12 @@ void l_audio_init(LAudio* l_audio, LMultiProcessor* l_processor) {
                              PA_CONTEXT_NOAUTOSPAWN | PA_CONTEXT_NOFAIL, NULL);
   g_assert(r == 0);
 
-  fprintf(stderr, "context state: %d\n", pa_context_get_state(l_audio->ctx));
-  fprintf(stderr, "context connect: %d\n", r);
+  //fprintf(stderr, "context state: %d\n", pa_context_get_state(l_audio->ctx));
+  //fprintf(stderr, "context connect: %d\n", r);
 
   pa_context_set_state_callback(l_audio->ctx, context_state_callback, l_audio);
 
-  fprintf(stderr, "context state: %d\n", pa_context_get_state(l_audio->ctx));
+  // fprintf(stderr, "context state: %d\n", pa_context_get_state(l_audio->ctx));
 
   pa_cvolume_init(&l_audio->cvolume);
   l_audio->cvolume.channels = 2;

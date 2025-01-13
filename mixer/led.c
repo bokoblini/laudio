@@ -1,6 +1,6 @@
 #include "led.h"
 
-const int AREA_SIZE = 10;
+const int AREA_SIZE = 50;
 
 void draw_function(GtkDrawingArea *area, cairo_t *cr, int width, int height,
                    gpointer user_data) {
@@ -36,6 +36,7 @@ void l_audio_led_setup(LAudioLed *led) {
   gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(led->drawing_area),
                                  draw_function, led, NULL);
   led->timeout = 0;
+  led->state = 0;
 }
 
 gboolean l_audio_led_reset(gpointer user_data) {
